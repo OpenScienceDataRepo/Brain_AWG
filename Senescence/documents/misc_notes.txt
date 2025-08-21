@@ -1,0 +1,3 @@
+Methylation-linked deregulation of PER genes correlates with c‑erbB2/HER2 positivity by IHC, supporting an association between HER2 pathway activation and epigenetic silencing of clock components.  In large-scale transcriptomic analyses of TCGA-BRCA, HER2-positive tumors display lower expression of several core clock genes (e.g., CRY2, PER1, BMAL1, RORA) and higher NR1D1 (REV-ERBα), compared with HER2-negative disease, consistent with HER2-associated circadian disruption.
+
+trastuzumab

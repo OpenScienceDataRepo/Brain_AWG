@@ -1,0 +1,22 @@
+# File: environment_rsc.yml
+name: rsc
+channels:
+ - rapidsai
+ - nvidia
+ - conda-forge
+ - bioconda
+dependencies:
+ - rapids=25.06
+ - python=3.13
+ - cuda-version=12.8
+ - cudnn
+ - cutensor
+ - cusparselt
+ - jupyterlab
+ - pip
+ - pip:
+    - gdown
+    - wget
+    - scikit-misc
+    - rapids-singlecell
+
