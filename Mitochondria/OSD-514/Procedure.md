@@ -224,6 +224,158 @@ generate_rnk(
   "DEG_ranked_list_1G_vs_Earth.rnk"
 )
 ```
+I also used Jack Cheng's gmt file (from GeneMatrix on GitHub) for GSEA
+
+Initial GSEA yielded an error, likely a formatting error detected by the below code:
+```
+# 0 Load libraries
+library(dplyr)
+library(stringr)
+
+
+# 1 Set working directory
+setwd("~/Desktop/ADBR Mito/OSD-514/RESULTS")
+
+# 2 Load your ranked gene list (from DESeq2 or similar)
+# Must have at least two columns: "Gene" and "Stat" (log2FC, t-statistic, etc.)
+ranked_file <- "DEG_ranked_list.rnk" # replace with your file
+
+# Use base R to read it (no readr needed)
+ranked_df <- read.delim(ranked_file, header = TRUE, stringsAsFactors = FALSE)
+
+# Example columns: Gene, log2FoldChange
+
+# 3 Load GMT file
+gmt_file <- "Drosophila_KEGG.gmt" # replace with actual GMT filename
+
+# Read GMT: each line is one gene set
+gmt_lines <- readLines(gmt_file)
+gmt_list <- lapply(gmt_lines, function(line) {
+  parts <- str_split(line, "\t")[[1]]
+  # First element = GeneSet name, 2nd = description, rest = genes
+  list(name = parts[1], desc = parts[2], genes = parts[-c(1,2)])
+})
+
+# 4 Check gene ID overlap
+overlap_results <- data.frame(
+  GeneSet = sapply(gmt_list, function(x) x$name),
+  SetSize = sapply(gmt_list, function(x) length(x$genes)),
+  Overlap = sapply(gmt_list, function(x) sum(x$genes %in% ranked_df$Gene))
+)
+
+# 5 Report summary
+cat("Total gene sets:", nrow(overlap_results), "\n")
+cat("Gene sets with ≥1 overlapping gene:", sum(overlap_results$Overlap >= 1), "\n")
+cat("Gene sets passing typical min size (>=15) threshold:",
+    sum(overlap_results$Overlap >= 15), "\n")
+
+# Optional: view top overlaps
+top_overlaps <- overlap_results %>% arrange(desc(Overlap)) %>% head(20)
+print(top_overlaps)
+
+# 6 Identify problematic gene sets
+problematic <- overlap_results[overlap_results$Overlap == 0, ]
+if(nrow(problematic) > 0){
+  cat("Warning: The following gene sets have ZERO overlap with your ranked list:\n")
+  print(problematic$GeneSet)
+} else {
+  cat("All gene sets have at least one overlapping gene.\n")
+}
+```
+The below code was used to correct and replace the rnk file
+```
+# 0 Load libraries
+library(dplyr)
+library(stringr)
+library(biomaRt)
+
+# 1 Set working directory
+setwd("~/Desktop/ADBR Mito/OSD-514/RESULTS")  # adjust as needed
+
+# 2 Load your ranked gene list
+# Replace with your file name
+ranked_file <- "DEG_ranked_list.rnk"
+
+# Load as plain table; set column names
+ranked_df <- read.delim(ranked_file, header = FALSE, stringsAsFactors = FALSE)
+colnames(ranked_df) <- c("Gene", "Stat")
+
+# Quick check
+head(ranked_df)
+
+# 3 Map FlyBase IDs to gene symbols (for KEGG GMT)
+fly <- useMart("ensembl", dataset = "dmelanogaster_gene_ensembl")
+
+mapping <- getBM(
+  attributes = c("flybase_gene_id", "external_gene_name"),
+  filters = "flybase_gene_id",
+  values = ranked_df$Gene,
+  mart = fly
+)
+
+# Merge mapped symbols back into ranked list
+ranked_df <- merge(ranked_df, mapping, by.x = "Gene", by.y = "flybase_gene_id")
+ranked_df$Gene <- ranked_df$external_gene_name
+
+# Remove any rows without mapped symbols
+ranked_df <- ranked_df[!is.na(ranked_df$Gene), ]
+
+head(ranked_df)
+
+# 4 Load GMT file
+gmt_file <- "Drosophila_KEGG.gmt"  # replace with actual GMT filename
+gmt_lines <- readLines(gmt_file)
+
+gmt_list <- lapply(gmt_lines, function(line) {
+  parts <- str_split(line, "\t")[[1]]
+  list(
+    name = parts[1],
+    desc = parts[2],
+    genes = parts[-c(1,2)]
+  )
+})
+
+# 5 Check gene ID overlap
+overlap_results <- data.frame(
+  GeneSet = sapply(gmt_list, function(x) x$name),
+  SetSize = sapply(gmt_list, function(x) length(x$genes)),
+  Overlap = sapply(gmt_list, function(x) sum(x$genes %in% ranked_df$Gene))
+)
+
+# 6 Report summary
+cat("Total gene sets:", nrow(overlap_results), "\n")
+cat("Gene sets with ≥1 overlapping gene:", sum(overlap_results$Overlap >= 1), "\n")
+cat("Gene sets passing typical min size (>=15) threshold:", sum(overlap_results$Overlap >= 15), "\n")
+
+# Optional: view top overlaps
+top_overlaps <- overlap_results %>% arrange(desc(Overlap)) %>% head(20)
+print(top_overlaps)
+
+# Identify problematic gene sets
+problematic <- overlap_results[overlap_results$Overlap == 0, ]
+if(nrow(problematic) > 0){
+  cat("Warning: The following gene sets have ZERO overlap with your ranked list:\n")
+  print(problematic$GeneSet)
+} else {
+  cat("All gene sets have at least one overlapping gene.\n")
+}
+
+write.table(ranked_df[, c("Gene", "Stat")],
+            file = "DEG_ranked_symbols.rnk",
+            sep = "\t",
+            row.names = FALSE,
+            col.names = FALSE,
+            quote = FALSE)
+
+# Save corrected rnk file
+write.table(ranked_df[, c("Gene", "Stat")],
+            file = "DEG_ranked_symbols.rnk",
+            sep = "\t",
+            row.names = FALSE,
+            col.names = FALSE,
+            quote = FALSE)
+
+```
 # GSEA Analysis and Results
 GSEA was run on both conditions (1G vs Earth, Microgravity vs Earth) in order to investigate more subtle changes and overall trends in gene expression.
 
