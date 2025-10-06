@@ -594,3 +594,264 @@ save_heatmap("MG_vs_1G", out_MG_vs_1G$res,
 
 message("Saved PNGs to: ", file.path(OUT_DIR, "figs"))
 ```
+# Mito-Specific Analysis (GO ORA)
+
+After analyzing and visualizing DESeq2 results, we decided to zero in on mitochondrially relevant genes and where they land on the spectrum of differentially expressed genes by performing GO Overrepresentation Analysis (ORA) on pathways of interest and related terms.
+
+```
+# Working dir (edit if needed)
+setwd("~/Desktop/ADBR Mito/OSD-514")
+
+# Load Packages
+pkgs_cran <- c("ggplot2","ggrepel","pheatmap","dplyr")
+for (p in pkgs_cran) if (!requireNamespace(p, quietly=TRUE)) install.packages(p)
+
+if (!requireNamespace("BiocManager", quietly=TRUE)) install.packages("BiocManager")
+pkgs_bioc <- c("DESeq2","AnnotationDbi","org.Dm.eg.db","GO.db")
+for (p in pkgs_bioc) if (!requireNamespace(p, quietly=TRUE)) BiocManager::install(p, ask=FALSE, update=FALSE)
+
+suppressPackageStartupMessages({
+  library(ggplot2); library(ggrepel); library(pheatmap); library(dplyr)
+  library(DESeq2);  library(AnnotationDbi); library(org.Dm.eg.db); library(GO.db)
+})
+
+# Output dirs
+if (!exists("OUT_DIR")) OUT_DIR <- "RESULTS_OSD514"
+dir.create(file.path(OUT_DIR,"figs"),   recursive=TRUE, showWarnings=FALSE)
+dir.create(file.path(OUT_DIR,"tables"), recursive=TRUE, showWarnings=FALSE)
+tbl_dir <- file.path(OUT_DIR, "tables")
+
+# Load DE results from prev step
+load_de <- function(tag) {
+  f_un  <- file.path(tbl_dir, paste0("DE_", tag, "_unshrunk.csv"))
+  if (!file.exists(f_un)) stop("Missing unshrunk DE table: ", f_un)
+  res_df <- read.csv(f_un, check.names=FALSE)
+  if ("gene" %in% names(res_df)) rownames(res_df) <- res_df$gene
+
+  # prefer apeglm files if present, otherwise ashr, else any file that starts with LFCshrunk_
+  cand <- c("apeglm","apeglm_relevel","ashr")
+  f_shr <- NULL
+  for (m in cand) {
+    f_try <- file.path(tbl_dir, paste0("DE_", tag, "_LFCshrunk_", m, ".csv"))
+    if (file.exists(f_try)) { f_shr <- f_try; break }
+  }
+  if (is.null(f_shr)) {
+    # fallback: pick any LFCshrunk_* file if exists
+    f_any <- list.files(tbl_dir, pattern=paste0("^DE_", tag, "_LFCshrunk_.*\\.csv$"), full.names=TRUE)
+    if (length(f_any)) f_shr <- f_any[1]
+  }
+  if (is.null(f_shr)) stop("No shrunken LFC table found for ", tag, ".")
+
+  shr_df <- read.csv(f_shr, check.names=FALSE)
+  if ("gene" %in% names(shr_df)) rownames(shr_df) <- shr_df$gene
+  message("Loaded: ", basename(f_un), " + ", basename(f_shr))
+  list(res=res_df, res_shr=shr_df)
+}
+
+out_MG_vs_E   <- load_de("MG_vs_EARTH")
+out_1G_vs_E   <- load_de("1G_vs_EARTH")
+out_MG_vs_1G  <- load_de("MG_vs_1G")
+
+# Try to get vsd/meta (for heatmaps). Prefer DESeq2 RDS; else rebuild from Step 2 CSVs.
+if (!exists("vsd") || !exists("meta")) {
+  f_dds <- file.path(OUT_DIR,"tables","dds_step3_DESeq2.rds")
+  if (file.exists(f_dds)) {
+    dds  <- readRDS(f_dds)
+    meta <- as.data.frame(colData(dds))
+    vsd  <- vst(dds, blind=TRUE)
+    message("Loaded vsd/meta from: ", f_dds)
+  } else {
+    f_counts <- file.path("Collapsed_Counts","tables","counts_DESeq_ready.csv")
+    f_meta   <- file.path("Collapsed_Counts","tables","metadata_from_filenames.csv")
+    if (file.exists(f_counts) && file.exists(f_meta)) {
+      message("Rebuilding vsd/meta from Step-2 CSVs.")
+      counts <- as.matrix(read.csv(f_counts, row.names=1, check.names=FALSE))
+      meta   <- read.csv(f_meta,   row.names=1, check.names=FALSE)
+      meta$condition_group <- factor(meta$condition_group,
+        levels=c("EARTH","SPACEFLIGHT_1G","SPACEFLIGHT_MICROGRAVITY"))
+      if (!is.factor(meta$sex)) meta$sex <- factor(meta$sex)
+      # simple design for VST; DE already done
+      dds <- DESeqDataSetFromMatrix(round(counts), colData=meta, design=~ sex + condition_group)
+      dds <- estimateSizeFactors(dds)
+      vsd <- vst(dds, blind=TRUE)
+    } else {
+      message("No vsd/meta available; heatmaps will be skipped (volcanoes still created).")
+    }
+  }
+}
+
+# FBgn → SYMBOL map (use union of DE IDs + vsd if present)
+fbgn_keys <- unique(c(
+  rownames(out_MG_vs_E$res), rownames(out_1G_vs_E$res), rownames(out_MG_vs_1G$res),
+  if (exists("vsd")) rownames(vsd) else character(0)
+))
+map_tbl <- AnnotationDbi::select(org.Dm.eg.db, keys=fbgn_keys, columns="SYMBOL", keytype="FLYBASE")
+fbgn_sym_map <- setNames(map_tbl$SYMBOL, map_tbl$FLYBASE)
+toSym <- function(x) { y <- unname(fbgn_sym_map[x]); y[is.na(y) | y==""] <- x[is.na(y) | y==""]; y }
+
+# Short sample labels for heatmaps
+if (exists("meta") && exists("vsd") && !exists("short_col_lab")) {
+  cond_code <- c(EARTH="E", SPACEFLIGHT_1G="1G", SPACEFLIGHT_MICROGRAVITY="MG")
+  default_lane <- if ("lane" %in% colnames(meta)) meta$lane else ""
+  lab <- paste(cond_code[as.character(meta$condition_group)],
+               substr(as.character(meta$sex), 1, 1),
+               if ("replicate" %in% colnames(meta)) meta$replicate else "",
+               default_lane, sep="_")
+  names(lab) <- rownames(meta)
+  short_col_lab <- lab[colnames(vsd)]
+}
+
+# Curated mitochondrial GO sets (BP & CC + descendants)
+mito_go_bp <- c(
+  "GO:0006119",  # oxidative phosphorylation
+  "GO:0022900",  # electron transport chain
+  "GO:0006099",  # tricarboxylic acid (TCA) cycle
+  "GO:0006635",  # fatty acid beta-oxidation
+  "GO:0000422"   # mitophagy
+)
+mito_go_cc <- c(
+  "GO:0005739",  # mitochondrion
+  "GO:0005743",  # mitochondrial inner membrane
+  "GO:0005747",  # respiratory chain complex I
+  "GO:0005753",  # ATP synthase complex
+  "GO:0005759"   # mitochondrial matrix
+)
+
+.expand_offspring <- function(go_ids, offspr_env) {
+  kids <- unique(unlist(mget(go_ids, envir=offspr_env, ifnotfound=NA)))
+  unique(na.omit(c(go_ids, kids)))
+}
+all_go <- unique(c(
+  .expand_offspring(mito_go_bp, GOBPOFFSPRING),
+  .expand_offspring(mito_go_cc, GOCCOFFSPRING)
+))
+
+go2genes <- AnnotationDbi::select(org.Dm.eg.db, keys=all_go, keytype="GO", columns="FLYBASE")
+mito_fbgn_curated <- unique(na.omit(go2genes$FLYBASE))
+message("Curated mito set size (FlyBase IDs): ", length(mito_fbgn_curated))
+
+# Volcano (label curated mito genes; colors: Down=blue, NS=grey, Up=red)
+save_volcano_mito <- function(res_unshr, res_shr, tag, mito_fbgn, thr_p=0.05, thr_fc=1) {
+  vdf <- as.data.frame(res_unshr)
+  vdf$gene_id     <- rownames(vdf)
+  vdf$log2FC_shr  <- res_shr[rownames(vdf), "log2FoldChange"]
+  vdf$gene_symbol <- toSym(vdf$gene_id)
+
+  vdf$group <- "NS"
+  vdf$group[vdf$padj < thr_p & vdf$log2FC_shr >=  thr_fc] <- "Up (sig)"
+  vdf$group[vdf$padj < thr_p & vdf$log2FC_shr <= -thr_fc] <- "Down (sig)"
+  vdf$group <- factor(vdf$group, levels=c("Down (sig)","NS","Up (sig)"))
+
+  lab_set <- intersect(mito_fbgn, vdf$gene_id)
+  if (!length(lab_set)) lab_set <- head(vdf[order(vdf$padj), "gene_id"], 12)
+
+  out <- file.path(OUT_DIR,"figs", paste0("volcano_mito_", tag, ".png"))
+  png(out, width=1800, height=1500, res=200, bg="white")
+  print(
+    ggplot(vdf, aes(x=log2FC_shr, y=-log10(padj), color=group)) +
+      geom_point(alpha=0.7, size=1.6, na.rm=TRUE) +
+      # halo the labeled mito genes
+      geom_point(data=subset(vdf, gene_id %in% lab_set), shape=21, stroke=0.7, size=2.8, color="black") +
+      geom_vline(xintercept=c(-thr_fc, thr_fc), linetype="dashed") +
+      geom_hline(yintercept=-log10(thr_p), linetype="dashed") +
+      ggrepel::geom_text_repel(
+        data=subset(vdf, gene_id %in% lab_set),
+        aes(label=gene_symbol),
+        size=3, max.overlaps=40, box.padding=0.4, min.segment.length=0
+      ) +
+      scale_color_manual(values=c("Down (sig)"="#2C7BB6","NS"="grey60","Up (sig)"="#D7191C")) +
+      labs(x="Shrunken log2 fold change", y="-log10(FDR)",
+           title=paste0("Volcano (mitochondrial focus): ", gsub("_"," ", tag)),
+           subtitle="Dashed: |log2FC|=1 and FDR=0.05. Labels = curated mito genes (GO).") +
+      theme_classic() + theme(legend.position="top")
+  )
+  dev.off()
+}
+
+# Heatmap of curated mito genes (only the two groups being compared)
+save_mito_heatmap <- function(tag, res_unshr, groups, mito_fbgn, max_rows=50, cap_z=2.5) {
+  if (!exists("vsd") || !exists("meta")) { message("No vsd/meta; skipping heatmap for ", tag); return(invisible(NULL)) }
+  mat <- assay(vsd)
+
+  # choose the columns for the two groups
+  cols_use <- rownames(meta)[meta$condition_group %in% groups]
+  if (!length(cols_use)) { message("No columns match groups for ", tag); return(invisible(NULL)) }
+
+  ann_cols <- intersect(c("condition_group","sex","replicate","flowcell","lane","batch"),
+                        colnames(meta))
+  ann <- meta[cols_use, ann_cols, drop=FALSE]
+
+  # explicit order: condition -> sex -> replicate
+  cond_levels <- c("EARTH","SPACEFLIGHT_1G","SPACEFLIGHT_MICROGRAVITY")
+  ord_keys <- list(factor(ann$condition_group, levels=cond_levels[cond_levels %in% groups]))
+  if ("sex" %in% colnames(ann))       ord_keys[[length(ord_keys)+1]] <- ann$sex
+  if ("replicate" %in% colnames(ann)) ord_keys[[length(ord_keys)+1]] <- ann$replicate
+  ord <- do.call(order, ord_keys)
+  ann <- ann[ord, , drop=FALSE]
+  cols_use <- rownames(ann)
+
+  # pick curated mito genes present; rank by padj then |LFC|
+  rdf <- as.data.frame(res_unshr); rdf$gene_id <- rownames(rdf)
+  genes_in <- intersect(mito_fbgn, rownames(mat))
+  if (!length(genes_in)) { message("Curated mito set has no overlap for ", tag); return(invisible(NULL)) }
+  # guard if some genes missing from res_unshr (should be rare)
+  genes_rankable <- intersect(genes_in, rownames(rdf))
+  ord_idx <- order(rdf[genes_rankable, "padj"], -abs(rdf[genes_rankable, "log2FoldChange"]))
+  genes_plot <- genes_rankable[ord_idx][seq_len(min(length(genes_rankable), max_rows))]
+
+  z <- t(scale(t(mat[genes_plot, cols_use, drop=FALSE])))
+  z[is.na(z)] <- 0
+  z[z >  cap_z] <-  cap_z
+  z[z < -cap_z] <- -cap_z
+  rownames(z) <- toSym(rownames(z))
+
+  if (!exists("short_col_lab")) short_col_lab <- setNames(colnames(z), colnames(z))
+  lab_col <- short_col_lab[colnames(z)]
+
+  # batch token if not present
+  if (!"batch" %in% colnames(ann) && all(c("flowcell","lane") %in% colnames(ann))) {
+    ann$batch <- factor(paste(ann$flowcell, ann$lane, sep="_"))
+  }
+
+  out <- file.path(OUT_DIR,"figs", paste0("heatmap_mito_", tag, ".png"))
+  png(out, width=2200, height=1500, res=200, bg="white")
+  pheatmap::pheatmap(z,
+    scale="none",
+    cluster_rows=TRUE,
+    cluster_cols=FALSE,  # keep explicit order (no gaps)
+    annotation_col = ann[, intersect(c("condition_group","sex","batch"), colnames(ann)), drop=FALSE],
+    labels_col = lab_col,
+    show_rownames=TRUE, show_colnames=TRUE,
+    fontsize_row=8, fontsize_col=9,
+    border_color=NA,
+    main=paste0("Curated mitochondrial genes (", gsub("_"," ", tag), "); row-Z cap ±", cap_z,
+                " (", nrow(z), " genes)")
+  )
+  dev.off()
+}
+
+# Make the plots
+save_volcano_mito(out_MG_vs_E$res,  out_MG_vs_E$res_shr,  "MG_vs_EARTH", mito_fbgn_curated)
+save_volcano_mito(out_1G_vs_E$res,  out_1G_vs_E$res_shr,  "1G_vs_EARTH", mito_fbgn_curated)
+save_volcano_mito(out_MG_vs_1G$res, out_MG_vs_1G$res_shr, "MG_vs_1G",   mito_fbgn_curated)
+
+save_mito_heatmap("MG_vs_EARTH",
+  res_unshr = out_MG_vs_E$res,
+  groups    = c("SPACEFLIGHT_MICROGRAVITY","EARTH"),
+  mito_fbgn = mito_fbgn_curated,
+  max_rows  = 50, cap_z=2.5)
+
+save_mito_heatmap("1G_vs_EARTH",
+  res_unshr = out_1G_vs_E$res,
+  groups    = c("SPACEFLIGHT_1G","EARTH"),
+  mito_fbgn = mito_fbgn_curated,
+  max_rows  = 50, cap_z=2.5)
+
+save_mito_heatmap("MG_vs_1G",
+  res_unshr = out_MG_vs_1G$res,
+  groups    = c("SPACEFLIGHT_MICROGRAVITY","SPACEFLIGHT_1G"),
+  mito_fbgn = mito_fbgn_curated,
+  max_rows  = 50, cap_z=2.5)
+
+message("Saved focused PNGs to: ", file.path(OUT_DIR, "figs"))
+```
