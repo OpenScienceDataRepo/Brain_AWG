@@ -855,3 +855,186 @@ save_mito_heatmap("MG_vs_1G",
 
 message("Saved focused PNGs to: ", file.path(OUT_DIR, "figs"))
 ```
+# GSEA (in R)
+
+```
+# Working directory
+setwd("~/Desktop/ADBR Mito/OSD-514")
+
+# Packages
+pkgs_cran <- c("data.table","ggplot2")
+for (p in pkgs_cran) if (!requireNamespace(p, quietly=TRUE)) install.packages(p)
+
+if (!requireNamespace("BiocManager", quietly=TRUE)) install.packages("BiocManager")
+pkgs_bioc <- c("fgsea","AnnotationDbi","org.Dm.eg.db","GO.db")
+for (p in pkgs_bioc) if (!requireNamespace(p, quietly=TRUE)) BiocManager::install(p, ask=FALSE, update=FALSE)
+
+suppressPackageStartupMessages({
+  library(data.table); library(ggplot2)
+  library(fgsea);      library(AnnotationDbi)
+  library(org.Dm.eg.db); library(GO.db)
+})
+
+# Output dirs
+GSEA_DIR <- "GSEA"
+dir.create(GSEA_DIR, recursive=TRUE, showWarnings=FALSE)
+dir.create(file.path(GSEA_DIR,"tables"), recursive=TRUE, showWarnings=FALSE)
+dir.create(file.path(GSEA_DIR,"figs"),   recursive=TRUE, showWarnings=FALSE)
+
+OUT_DIR <- "RESULTS_OSD514"
+TBL_DIR <- file.path(OUT_DIR,"tables")
+
+# Helpers
+load_de <- function(tag) {
+  f <- file.path(TBL_DIR, paste0("DE_", tag, "_unshrunk.csv"))
+  if (!file.exists(f)) stop("Missing DE table: ", f)
+  df <- read.csv(f, check.names=FALSE)
+  if ("gene" %in% names(df)) rownames(df) <- df$gene
+  df
+}
+
+# Build ranks: prefer Wald stat; else signed -log10(p)
+build_ranks <- function(res_df) {
+  ids <- rownames(res_df)
+  if ("stat" %in% names(res_df) && any(is.finite(res_df$stat))) {
+    score <- res_df$stat
+  } else {
+    pv    <- if ("pvalue" %in% names(res_df)) res_df$pvalue else res_df$padj
+    pv[!is.finite(pv) | is.na(pv)] <- 1
+    lfc   <- if ("log2FoldChange" %in% names(res_df)) res_df$log2FoldChange else 0
+    score <- sign(lfc) * (-log10(pmax(pv, 1e-300)))
+  }
+  keep <- is.finite(score) & !is.na(ids) & nzchar(ids)
+  ranks <- tapply(score[keep], ids[keep], mean)  # aggregate duplicates
+  sort(ranks, decreasing=TRUE)
+}
+
+# Build GO BP sets limited to the current ranked universe (robust)
+build_go_bp_sets <- function(ranks, min_size=10, max_size=500) {
+  genes <- names(ranks)
+  m <- AnnotationDbi::select(org.Dm.eg.db,
+                             keys=genes, keytype="FLYBASE",
+                             columns=c("GOALL","ONTOLOGYALL"))
+  m <- unique(as.data.frame(m, stringsAsFactors=FALSE))
+  m <- m[!is.na(m$GOALL) & !is.na(m$ONTOLOGYALL) & m$ONTOLOGYALL=="BP", , drop=FALSE]
+  pathways <- split(m$FLYBASE, m$GOALL, drop=TRUE)
+  pathways <- lapply(pathways, function(x) unique(x[!is.na(x) & nzchar(x)]))
+  lens <- vapply(pathways, length, integer(1))
+  pathways[lens >= min_size & lens <= max_size]
+}
+
+# Map GOID -> TERM
+term_map_for <- function(go_ids) {
+  if (!length(go_ids)) return(setNames(character(0), character(0)))
+  tbl <- AnnotationDbi::select(GO.db, keys=go_ids, keytype="GOID", columns="TERM")
+  tbl <- unique(as.data.frame(tbl, stringsAsFactors=FALSE))
+  setNames(tbl$TERM, tbl$GOID)
+}
+
+# Null-coalesce
+`%||%` <- function(a,b) if (!is.null(a) && !is.na(a) && nzchar(a)) a else b
+
+# Pick mito-relevant pathways; fallback to top hits if none
+pick_mito_paths <- function(fg_dt, padj_cut=0.25, top_n=8) {
+  if (!nrow(fg_dt)) return(character(0))
+  lab <- if ("term" %in% names(fg_dt)) fg_dt$term else fg_dt$pathway
+  mito_pat <- paste(
+    "mitochond", "oxidative phosph", "electron transport", "respiratory chain",
+    "ATP synthase", "tricarboxylic", "TCA", "beta-oxid", "mitophagy", "fission", "fusion",
+    sep="|"
+  )
+  mito <- fg_dt[grepl(mito_pat, lab, ignore.case=TRUE) & is.finite(fg_dt$padj), , drop=FALSE]
+  mito <- mito[order(mito$padj, -abs(mito$NES)), , drop=FALSE]
+  sel <- mito$pathway[mito$padj <= padj_cut]
+  if (!length(sel)) sel <- head(mito$pathway, min(top_n, nrow(mito)))
+  unique(na.omit(sel))
+}
+
+# Save enrichment curve for one pathway
+save_enrichment_curve <- function(tag, pathway_id, ranks, pathways, TERM_MAP) {
+  if (!pathway_id %in% names(pathways)) return(invisible(NULL))
+  term_label <- TERM_MAP[[pathway_id]] %||% pathway_id
+  gp <- fgsea::plotEnrichment(pathways[[pathway_id]], ranks) +
+        ggplot2::ggtitle(paste0(term_label, " (", tag, ")"))
+  fn <- file.path(GSEA_DIR,"figs",
+                  paste0("fgsea_curve_",
+                         gsub("[^A-Za-z0-9]+","_", term_label), "_", tag, ".png"))
+  ggsave(fn, gp, width=7, height=5, dpi=300, bg="white")
+  message("Saved: ", fn)
+}
+
+# Save compact GSEA table figure (strip with NES/FDR)
+save_gsea_table_plot <- function(tag, sel_paths, ranks, pathways, fg_dt, TERM_MAP) {
+  sel_paths <- intersect(sel_paths, names(pathways))
+  if (!length(sel_paths)) { message("No selected pathways to plot for ", tag); return(invisible(NULL)) }
+  fg_sel <- fg_dt[match(sel_paths, fg_dt$pathway), , drop=FALSE]
+  fn <- file.path(GSEA_DIR, "figs", paste0("fgsea_table_", tag, ".png"))
+  png(fn, width=1600, height=900, res=150, bg="white")
+  fgsea::plotGseaTable(pathways[sel_paths], ranks, fg_sel)
+  dev.off()
+  message("Saved: ", fn)
+}
+
+# Run everything for one contrast
+run_fgsea_and_plots <- function(tag, nperm=10000, padj_cut_table=0.25, topN_bar=15) {
+  message("\n=== ", tag, " ===")
+  res_df <- load_de(tag)
+  ranks  <- build_ranks(res_df)
+  if (length(ranks) < 50) stop("Too few ranked genes for ", tag)
+
+  pathways <- build_go_bp_sets(ranks, min_size=10, max_size=500)
+  if (!length(pathways)) stop("No GO BP pathways built for ", tag)
+  TERM_MAP <- term_map_for(names(pathways))
+
+  set.seed(42)
+  fg <- suppressWarnings(
+    fgsea(pathways=pathways, stats=ranks, minSize=10, maxSize=500, nperm=nperm)
+  )
+  fg_dt <- as.data.table(fg)
+  if (!nrow(fg_dt)) { message("fgsea returned no results for ", tag); return(invisible(NULL)) }
+  setorder(fg_dt, padj, -NES)
+  fg_dt[, term := TERM_MAP[pathway]]
+
+  # Save full table
+  out_csv <- file.path(GSEA_DIR, "tables", paste0("fgsea_GO_BP_", tag, ".csv"))
+  fwrite(fg_dt[, .(pathway, term, size, NES, pval, padj,
+                   leadingEdge = vapply(leadingEdge, \(v) paste(v, collapse=";"), character(1)))],
+         out_csv)
+  message("Saved: ", out_csv)
+
+  # Quick top barplot
+  topN <- head(fg_dt[is.finite(padj)], topN_bar)
+  if (nrow(topN)) {
+    topN[, label := ifelse(is.na(term) | term=="", pathway, term)]
+    p <- ggplot(topN, aes(x=reorder(label, NES), y=NES, fill=-log10(padj))) +
+      geom_col() + coord_flip() +
+      labs(title=paste0("fgsea GO BP: ", gsub("_"," ", tag)),
+           x=NULL, y="NES", fill="-log10(FDR)") +
+      theme_minimal(base_size=12)
+    out_png <- file.path(GSEA_DIR, "figs", paste0("fgsea_GO_BP_", tag, ".png"))
+    ggsave(out_png, p, width=8, height=6, dpi=300, bg="white")
+    message("Saved: ", out_png)
+  }
+
+  # Pick mito-relevant terms; if none, fall back so plots are still produced
+  sel <- pick_mito_paths(fg_dt, padj_cut=padj_cut_table, top_n=8)
+  if (!length(sel)) {
+    message("No mito keywords found at the chosen FDR; falling back to top 6 terms for curves.")
+    sel <- head(fg_dt$pathway, 6)
+  }
+
+  # Enrichment curves
+  invisible(lapply(sel, save_enrichment_curve,
+                   tag=tag, ranks=ranks, pathways=pathways, TERM_MAP=TERM_MAP))
+
+  # Summary table figure
+  save_gsea_table_plot(tag, sel, ranks, pathways, fg_dt, TERM_MAP)
+}
+
+# Run all three contrasts
+for (tag in c("MG_vs_EARTH","1G_vs_EARTH","MG_vs_1G")) {
+  run_fgsea_and_plots(tag)
+}
+
+message("\nAll done. See: ", normalizePath(GSEA_DIR))
+```
