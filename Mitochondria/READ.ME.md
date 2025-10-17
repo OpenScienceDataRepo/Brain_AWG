@@ -4,5 +4,5 @@ This directory holds information and code used in the Brain AWG Mitochondria sub
 
 ## Mitochondria Projects:
 
-- [OSD-514](OSD-514)
+- [OSD-514](OSD-514) : Drosophila melanogaster (Spaceflight condition)
 
