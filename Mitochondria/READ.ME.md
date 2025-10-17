@@ -1,6 +1,9 @@
 # Mitochondria Subgroup 
 
-This directory holds information and code used in the Brain AWG Mitochondria subgroup projects. Click on a specific project below to learn more.
+This project investigates how spaceflight-induced stress impacts mitochondrial function and neuronal health. We hypothesize that spaceflight conditions disrupt oxidative phosphorylation and elevate reactive oxygen species (ROS) production in neurons, contributing to early markers of neuronal damage. These mitochondrial alterations may parallel early pathological processes observed in Alzheimer’s Disease, suggesting a shared mechanism of neurodegeneration. To explore this, we analyze bulk RNA sequencing data from Drosophila melanogaster, Mus musculus, and Homo sapiens to enable a comprehensive, cross-species comparison of mitochondrial gene expression patterns.
+
+
+This directory holds information and code used in the Brain AWG Mitochondria subgroup projects. Click on a specific dataset below to learn more.
 
 ## Mitochondria Projects:
 
