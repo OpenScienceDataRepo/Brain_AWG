@@ -111,18 +111,20 @@ save_volcano_mito <- function(df, tag, mito_genes, thr_FDR=0.05, thr_LFC=1) {
   dev.off()
 }
 
-# --- Key Comparisons ---
+# --- Key Comparisons: Only conditions vs Control ---
 comparisons_to_plot <- c(
   "eGRL_TREM2-WT/TYROBP vs eGRL_Control",
   "eGRL_TREM2-R47H/TYROBP vs eGRL_Control",
+  "eGRL_Aß42 vs eGRL_Control",
   "eGRL_Aß42/TREM2-WT/TYROBP vs eGRL_Control",
   "eGRL_Aß42/TREM2-R47H/TYROBP vs eGRL_Control"
 )
 
+# --- Generate Volcano Plots for Each ---
 for (comp in comparisons_to_plot) {
   df_sub <- deg_table[deg_table$Comparison == comp, ]
   save_volcano_mito(df_sub, tag=comp, mito_genes=mito_genes)
 }
 
-message("Mitochondrial-focused volcano plots saved to: ", OUT_DIR)
+message("✅ Mitochondrial-focused volcano plots saved to: ", OUT_DIR)
 ```
