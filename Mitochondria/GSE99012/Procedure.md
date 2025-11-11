@@ -23,6 +23,8 @@ These contrasts were prioritized because they isolate the transcriptional effect
 
 All DEGs were plotted for those contrasts, and only mitochondrially relecant genes were labelled for interpretation.
 
+Note: We consolidated all five contrasts into a single heatmap of mitochondrial genes. Attempting separate heatmaps for each contrast often produced too few genes for meaningful clustering. The combined heatmap provides a clear overview of expression patterns across all conditions, highlighting genes consistently up- or down-regulated while ensuring robust and interpretable clustering.
+
 ```
 # Setup Working Directory
 setwd("~/Desktop/ADBR Mito/GSE99012")  # change if needed
