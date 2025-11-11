@@ -28,7 +28,7 @@ All DEGs were plotted for those contrasts, and only mitochondrially relecant gen
 setwd("~/Desktop/ADBR Mito/GSE99012")  # change if needed
 
 # Load Packages
-pkgs_cran <- c("ggplot2","ggrepel","pheatmap","dplyr","readxl")
+pkgs_cran <- c("ggplot2","ggrepel","pheatmap","dplyr","readxl","tidyr")
 for (p in pkgs_cran) if (!requireNamespace(p, quietly=TRUE)) install.packages(p)
 
 if (!requireNamespace("BiocManager", quietly=TRUE)) install.packages("BiocManager")
@@ -41,6 +41,7 @@ suppressPackageStartupMessages({
   library(pheatmap)
   library(dplyr)
   library(readxl)
+  library(tidyr)
   library(AnnotationDbi)
   library(org.Dm.eg.db)
   library(GO.db)
@@ -53,6 +54,7 @@ dir.create(OUT_DIR, recursive=TRUE, showWarnings=FALSE)
 # Load DEG Table (Table S1)
 deg_table <- read_excel("DEG Sekiya et al. (2018).xlsx", sheet = "Table S1")
 deg_table <- deg_table[-c(1,2), ]  # Remove metadata/header rows
+deg_table <- as.data.frame(deg_table)  # ensure data frame
 
 # Rename columns
 colnames(deg_table)[1:8] <- c("GeneSymbol","Symbol","human_ortholog","log2FC","t","PValue","FDR","Comparison")
@@ -83,19 +85,16 @@ mito_genes <- unique(na.omit(go2genes$FLYBASE))
 # Volcano Plot Function
 save_volcano_mito <- function(df, tag, mito_genes, thr_FDR=0.05, thr_LFC=1) {
   
-  # Skip if no numeric values
   if(all(is.na(df$log2FC)) | all(is.na(df$FDR))) {
     message("Skipping ", tag, ": no numeric log2FC/FDR")
     return(NULL)
   }
   
-  # Assign significance groups
   df$group <- "NS"
   df$group[df$FDR < thr_FDR & df$log2FC >=  thr_LFC] <- "Up (sig)"
   df$group[df$FDR < thr_FDR & df$log2FC <= -thr_LFC] <- "Down (sig)"
   df$group <- factor(df$group, levels=c("Down (sig)","NS","Up (sig)"))
   
-  # Label only significant mitochondrial genes
   lab_set <- df$GeneSymbol[df$GeneSymbol %in% mito_genes & df$group != "NS"]
   
   out <- file.path(OUT_DIR, paste0("volcano_", gsub("[ /]","_",tag), ".png"))
@@ -137,77 +136,100 @@ for (comp in comparisons_to_plot) {
   save_volcano_mito(df_sub, tag=comp, mito_genes=mito_genes)
 }
 
-# Heatmap helper for GSE99012
-save_heatmap <- function(tag, res_unshr, groups, topN=40, cap_z=2.5) {
-  mat <- assay(vsd)
-
-  # Pick top genes by FDR then |LFC|
-  rdf <- as.data.frame(res_unshr)
-  rdf$gene_id <- rownames(rdf)
-  rdf <- rdf[order(rdf$padj, -abs(rdf$log2FoldChange)), ]
-  genes_use <- head(stats::na.omit(rdf$gene_id), topN)
-  genes_use <- intersect(genes_use, rownames(mat))
-  if (!length(genes_use)) stop("No genes available for heatmap: ", tag)
-
-  # Subset columns to requested groups
-  cols_use <- rownames(meta)[meta$condition_group %in% groups]
-  if (!length(cols_use)) stop("No columns match groups for heatmap: ", paste(groups, collapse=", "))
-  plot_mat <- mat[genes_use, cols_use, drop=FALSE]
-
-  # Row-Z scale and cap
-  z <- t(scale(t(plot_mat))); z[is.na(z)] <- 0
-  z[z >  cap_z] <-  cap_z
+# Unified Heatmap Function (mitochondrial only, with row-check)
+save_heatmap_unified <- function(tag, 
+                                 data_source,     
+                                 comparisons=NULL, 
+                                 res_unshr=NULL,   
+                                 meta=NULL,        
+                                 topN=40, cap_z=2.5) {
+  
+  fbgn2symbol <- setNames(deg_table$Symbol, deg_table$GeneSymbol)
+  
+  if (data_source == "deg_table") {
+    if (is.null(comparisons)) stop("comparisons must be provided for deg_table heatmap")
+    
+    # Filter to mitochondrial genes only
+    mat_fc <- deg_table %>%
+      dplyr::filter(Comparison %in% comparisons, GeneSymbol %in% mito_genes) %>%
+      dplyr::select(GeneSymbol, log2FC, Comparison) %>%
+      tidyr::pivot_wider(names_from = Comparison, values_from = log2FC)
+    
+    mat_fc <- mat_fc[complete.cases(mat_fc), ]
+    
+    # Remove zero-variance rows
+    vars <- apply(mat_fc[,-1], 1, var, na.rm=TRUE)
+    mat_fc <- mat_fc[vars > 0, , drop=FALSE]
+    
+    if(nrow(mat_fc) < 2){
+      message("Skipping heatmap ", tag, ": less than 2 mito genes with variable log2FC")
+      return(NULL)
+    }
+    
+    vars <- apply(mat_fc[,-1], 1, var, na.rm=TRUE)
+    mat_fc_top <- mat_fc[order(vars, decreasing=TRUE)[1:min(topN, nrow(mat_fc))], ]
+    
+    row_labels <- fbgn2symbol[mat_fc_top$GeneSymbol]
+    row_labels[is.na(row_labels)] <- mat_fc_top$GeneSymbol
+    plot_mat <- as.matrix(mat_fc_top[,-1])
+    
+  } else if (data_source == "DESeq2") {
+    if (is.null(res_unshr) | is.null(meta)) stop("res_unshr and meta must be provided for DESeq2 heatmap")
+    
+    mat <- assay(vsd)
+    rdf <- as.data.frame(res_unshr)
+    rdf$gene_id <- rownames(rdf)
+    rdf <- rdf[order(rdf$padj, -abs(rdf$log2FoldChange)), ]
+    genes_use <- head(stats::na.omit(rdf$gene_id), topN)
+    genes_use <- intersect(genes_use, rownames(mat))
+    if (!length(genes_use)) stop("No genes available for heatmap: ", tag)
+    
+    cols_use <- rownames(meta)
+    plot_mat <- mat[genes_use, cols_use, drop=FALSE]
+    
+    vars <- apply(plot_mat, 1, var)
+    plot_mat <- plot_mat[vars > 0, , drop=FALSE]
+    
+    if(nrow(plot_mat) < 2){
+      message("Skipping heatmap ", tag, ": less than 2 genes with variable expression")
+      return(NULL)
+    }
+    
+    row_labels <- fbgn2symbol[rownames(plot_mat)]
+    row_labels[is.na(row_labels)] <- rownames(plot_mat)
+    
+  } else {
+    stop("Invalid data_source: choose 'deg_table' or 'DESeq2'")
+  }
+  
+  # Row-Z scale
+  z <- t(scale(t(plot_mat)))
+  z[is.na(z)] <- 0
+  z[z > cap_z] <- cap_z
   z[z < -cap_z] <- -cap_z
-  rownames(z) <- toSym(rownames(z))  # FBgn -> gene symbol
-
-  # Column annotations
-  ann <- meta[cols_use, c("condition_group", "sex"), drop=FALSE]
-  ann$replicate <- if ("replicate" %in% colnames(meta)) meta[cols_use, "replicate", drop=TRUE] else seq_len(nrow(ann))
-
-  # Explicit order: condition → sex → replicate
-  cond_order_all <- unique(meta$condition_group)
-  cond_order <- cond_order_all[cond_order_all %in% groups]
-  ord <- order(factor(ann$condition_group, levels=cond_order),
-               as.character(ann$sex),
-               as.numeric(ann$replicate))
-  z   <- z[, ord, drop=FALSE]
-  ann <- ann[ord, , drop=FALSE]
-  lab_col <- colnames(z)
-
-  # Output file
-  out <- file.path(OUT_DIR, "figs", paste0("heatmap_", tag, ".png"))
-  png(out, width=2200, height=1500, res=200, bg="white")
-  pheatmap::pheatmap(z,
-    scale="none",
-    cluster_rows=TRUE,
-    cluster_cols=FALSE,
-    annotation_col=ann,
-    labels_col=lab_col,
-    show_rownames=TRUE,
-    show_colnames=TRUE,
-    fontsize_row=7,
-    fontsize_col=9,
-    border_color=NA,
-    main=paste0("Top ", nrow(z), " DE genes (", gsub("_"," ", tag), "); row-Z cap ±", cap_z)
-  )
+  
+  ann <- NULL
+  if (data_source == "DESeq2") {
+    ann <- meta[, c("condition_group","sex"), drop=FALSE]
+    ann$replicate <- if("replicate" %in% colnames(meta)) meta$replicate else seq_len(nrow(ann))
+  }
+  
+  png(file.path(OUT_DIR, paste0("heatmap_", gsub("[ /]","_",tag), ".png")), 
+      width=1800, height=1500, res=200, bg="white")
+  pheatmap(z,
+           labels_row = row_labels,
+           cluster_rows=TRUE,
+           cluster_cols=TRUE,
+           annotation_col=ann,
+           main=paste0("Top ", nrow(z), " mito genes (row-Z cap ±", cap_z, ")"),
+           fontsize_row=7, fontsize_col=9,
+           border_color=NA)
   dev.off()
 }
 
-# Generate heatmaps for each of the 5 contrasts vs control
-save_heatmap("TREM2WT_TYROBP_vs_Control", res_TREM2WT_TYROBP_vs_Control,
-             groups=c("eGRL_TREM2-WT/TYROBP", "eGRL_Control"))
-
-save_heatmap("TREM2R47H_TYROBP_vs_Control", res_TREM2R47H_TYROBP_vs_Control,
-             groups=c("eGRL_TREM2-R47H/TYROBP", "eGRL_Control"))
-
-save_heatmap("Ab42_vs_Control", res_Ab42_vs_Control,
-             groups=c("eGRL_Aß42", "eGRL_Control"))
-
-save_heatmap("Ab42_TREM2WT_TYROBP_vs_Control", res_Ab42_TREM2WT_TYROBP_vs_Control,
-             groups=c("eGRL_Aß42/TREM2-WT/TYROBP", "eGRL_Control"))
-
-save_heatmap("Ab42_TREM2R47H_TYROBP_vs_Control", res_Ab42_TREM2R47H_TYROBP_vs_Control,
-             groups=c("eGRL_Aß42/TREM2-R47H/TYROBP", "eGRL_Control"))
+# Generate Unified Heatmap Across All Contrasts
+save_heatmap_unified("log2FC_vsControl_mito", data_source="deg_table", comparisons=comparisons_to_plot)
 
 message("✅ Saved ", OUT_DIR)
+
 ```
