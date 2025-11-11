@@ -12,11 +12,20 @@ This meant that the QC and DESeq2 was already completed by the original research
 
 ## Visualization
 
+To focus specifically on gene expression changes relative to baseline conditions, only contrasts that directly compared experimental groups to the control were selected. These were:
+1. eGRL_TREM2-WT/TYROBP vs eGRL_Control
+2. eGRL_TREM2-R47H/TYROBP vs eGRL_Control
+3. eGRL_Aß42 vs eGRL_Control
+4. eGRL_Aß42/TREM2-WT/TYROBP vs eGRL_Control
+5.eGRL_Aß42/TREM2-R47H/TYROBP vs eGRL_Control
+
+These contrasts were prioritized because they isolate the transcriptional effects of each genetic modification or pathological stimulus relative to the unaltered baseline, allowing clearer interpretation of up- or downregulated pathways under each condition.
+
 ```
-# --- Setup Working Directory ---
+# Setup Working Directory
 setwd("~/Desktop/ADBR Mito/GSE99012")  # change if needed
 
-# --- Load Packages ---
+# Load Packages
 pkgs_cran <- c("ggplot2","ggrepel","pheatmap","dplyr","readxl")
 for (p in pkgs_cran) if (!requireNamespace(p, quietly=TRUE)) install.packages(p)
 
