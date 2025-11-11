@@ -137,5 +137,77 @@ for (comp in comparisons_to_plot) {
   save_volcano_mito(df_sub, tag=comp, mito_genes=mito_genes)
 }
 
-message("✅ Mitochondrial-focused volcano plots saved to: ", OUT_DIR)
+# Heatmap helper for GSE99012
+save_heatmap <- function(tag, res_unshr, groups, topN=40, cap_z=2.5) {
+  mat <- assay(vsd)
+
+  # Pick top genes by FDR then |LFC|
+  rdf <- as.data.frame(res_unshr)
+  rdf$gene_id <- rownames(rdf)
+  rdf <- rdf[order(rdf$padj, -abs(rdf$log2FoldChange)), ]
+  genes_use <- head(stats::na.omit(rdf$gene_id), topN)
+  genes_use <- intersect(genes_use, rownames(mat))
+  if (!length(genes_use)) stop("No genes available for heatmap: ", tag)
+
+  # Subset columns to requested groups
+  cols_use <- rownames(meta)[meta$condition_group %in% groups]
+  if (!length(cols_use)) stop("No columns match groups for heatmap: ", paste(groups, collapse=", "))
+  plot_mat <- mat[genes_use, cols_use, drop=FALSE]
+
+  # Row-Z scale and cap
+  z <- t(scale(t(plot_mat))); z[is.na(z)] <- 0
+  z[z >  cap_z] <-  cap_z
+  z[z < -cap_z] <- -cap_z
+  rownames(z) <- toSym(rownames(z))  # FBgn -> gene symbol
+
+  # Column annotations
+  ann <- meta[cols_use, c("condition_group", "sex"), drop=FALSE]
+  ann$replicate <- if ("replicate" %in% colnames(meta)) meta[cols_use, "replicate", drop=TRUE] else seq_len(nrow(ann))
+
+  # Explicit order: condition → sex → replicate
+  cond_order_all <- unique(meta$condition_group)
+  cond_order <- cond_order_all[cond_order_all %in% groups]
+  ord <- order(factor(ann$condition_group, levels=cond_order),
+               as.character(ann$sex),
+               as.numeric(ann$replicate))
+  z   <- z[, ord, drop=FALSE]
+  ann <- ann[ord, , drop=FALSE]
+  lab_col <- colnames(z)
+
+  # Output file
+  out <- file.path(OUT_DIR, "figs", paste0("heatmap_", tag, ".png"))
+  png(out, width=2200, height=1500, res=200, bg="white")
+  pheatmap::pheatmap(z,
+    scale="none",
+    cluster_rows=TRUE,
+    cluster_cols=FALSE,
+    annotation_col=ann,
+    labels_col=lab_col,
+    show_rownames=TRUE,
+    show_colnames=TRUE,
+    fontsize_row=7,
+    fontsize_col=9,
+    border_color=NA,
+    main=paste0("Top ", nrow(z), " DE genes (", gsub("_"," ", tag), "); row-Z cap ±", cap_z)
+  )
+  dev.off()
+}
+
+# Generate heatmaps for each of the 5 contrasts vs control
+save_heatmap("TREM2WT_TYROBP_vs_Control", res_TREM2WT_TYROBP_vs_Control,
+             groups=c("eGRL_TREM2-WT/TYROBP", "eGRL_Control"))
+
+save_heatmap("TREM2R47H_TYROBP_vs_Control", res_TREM2R47H_TYROBP_vs_Control,
+             groups=c("eGRL_TREM2-R47H/TYROBP", "eGRL_Control"))
+
+save_heatmap("Ab42_vs_Control", res_Ab42_vs_Control,
+             groups=c("eGRL_Aß42", "eGRL_Control"))
+
+save_heatmap("Ab42_TREM2WT_TYROBP_vs_Control", res_Ab42_TREM2WT_TYROBP_vs_Control,
+             groups=c("eGRL_Aß42/TREM2-WT/TYROBP", "eGRL_Control"))
+
+save_heatmap("Ab42_TREM2R47H_TYROBP_vs_Control", res_Ab42_TREM2R47H_TYROBP_vs_Control,
+             groups=c("eGRL_Aß42/TREM2-R47H/TYROBP", "eGRL_Control"))
+
+message("✅ Saved ", OUT_DIR)
 ```
