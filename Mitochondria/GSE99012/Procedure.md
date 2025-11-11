@@ -44,25 +44,25 @@ suppressPackageStartupMessages({
   library(GO.db)
 })
 
-# --- Output Directory ---
+# Output Directory
 OUT_DIR <- "RESULTS_GSE99012"
 dir.create(OUT_DIR, recursive=TRUE, showWarnings=FALSE)
 
-# --- Load DEG Table (Table S1) ---
+# Load DEG Table (Table S1)
 deg_table <- read_excel("DEG Sekiya et al. (2018).xlsx", sheet = "Table S1")
 deg_table <- deg_table[-c(1,2), ]  # Remove metadata/header rows
 
-# --- Rename columns ---
+# Rename columns
 colnames(deg_table)[1:8] <- c("GeneSymbol","Symbol","human_ortholog","log2FC","t","PValue","FDR","Comparison")
 
-# --- Convert numeric columns ---
+# Convert numeric columns
 deg_table$log2FC <- as.numeric(deg_table$log2FC)
 deg_table$FDR    <- as.numeric(deg_table$FDR)
 deg_table$GeneSymbol <- as.character(deg_table$GeneSymbol)
 deg_table$Symbol <- as.character(deg_table$Symbol)
 deg_table$Comparison <- as.character(deg_table$Comparison)
 
-# --- Curated Drosophila Mitochondrial Genes (FBgn IDs via GO) ---
+# Curated Drosophila Mitochondrial Genes (FBgn IDs via GO)
 mito_go_bp <- c("GO:0006119","GO:0022900","GO:0006099","GO:0006635","GO:0000422")
 mito_go_cc <- c("GO:0005739","GO:0005743","GO:0005747","GO:0005753","GO:0005759")
 
@@ -78,7 +78,7 @@ all_go <- unique(c(.expand_offspring(mito_go_bp, GOBPOFFSPRING),
 go2genes <- AnnotationDbi::select(org.Dm.eg.db, keys=all_go, keytype="GO", columns="FLYBASE")
 mito_genes <- unique(na.omit(go2genes$FLYBASE))
 
-# --- Volcano Plot Function ---
+# Volcano Plot Function
 save_volcano_mito <- function(df, tag, mito_genes, thr_FDR=0.05, thr_LFC=1) {
   
   # Skip if no numeric values
@@ -120,7 +120,7 @@ save_volcano_mito <- function(df, tag, mito_genes, thr_FDR=0.05, thr_LFC=1) {
   dev.off()
 }
 
-# --- Key Comparisons: Only conditions vs Control ---
+# Key Comparisons: Only conditions vs Control
 comparisons_to_plot <- c(
   "eGRL_TREM2-WT/TYROBP vs eGRL_Control",
   "eGRL_TREM2-R47H/TYROBP vs eGRL_Control",
@@ -129,7 +129,7 @@ comparisons_to_plot <- c(
   "eGRL_Aß42/TREM2-R47H/TYROBP vs eGRL_Control"
 )
 
-# --- Generate Volcano Plots for Each ---
+# Generate Volcano Plots for Each Contrast
 for (comp in comparisons_to_plot) {
   df_sub <- deg_table[deg_table$Comparison == comp, ]
   save_volcano_mito(df_sub, tag=comp, mito_genes=mito_genes)
