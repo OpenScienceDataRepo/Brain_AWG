@@ -21,6 +21,8 @@ To focus specifically on gene expression changes relative to baseline conditions
 
 These contrasts were prioritized because they isolate the transcriptional effects of each genetic modification or pathological stimulus relative to the unaltered baseline, allowing clearer interpretation of up- or downregulated pathways under each condition.
 
+All DEGs were plotted for those contrasts, and only mitochondrially relecant genes were labelled for interpretation.
+
 ```
 # Setup Working Directory
 setwd("~/Desktop/ADBR Mito/GSE99012")  # change if needed
