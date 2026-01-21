@@ -23,8 +23,7 @@ library(pheatmap)
 library(matrixStats)
 library(tibble)
 
-setwd("/Desktop/Mito ADBR/OSD-514/Proteomic")
-getwd()
+setwd("/Users/mariannavarro/Desktop/Mito ADBR/OSD-514/Proteomic")
 list.files()
 
 # READ NASA METADATA
@@ -45,6 +44,8 @@ meta <- read_tsv(
   ) %>%
   mutate(condition = factor(condition),
          sex = factor(sex))
+
+tmt_runs <- levels(meta$tmt_run)
 
 # FILE DISCOVERY
 files_tbl <- map_dfr(tmt_runs, function(run) {
