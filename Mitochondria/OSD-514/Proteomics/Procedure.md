@@ -23,7 +23,7 @@ library(pheatmap)
 library(matrixStats)
 library(tibble)
 
-setwd("/Users/mariannavarro/Desktop/Mito ADBR/OSD-514/Proteomic")
+setwd("/Users/mariannavarro/Desktop/ADBR Mito/OSD-514/Proteomic")
 list.files()
 
 # READ NASA METADATA
