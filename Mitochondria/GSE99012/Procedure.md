@@ -153,27 +153,32 @@ save_heatmap_unified <- function(tag,
     
     # Filter to mitochondrial genes only
     mat_fc <- deg_table %>%
-      dplyr::filter(Comparison %in% comparisons, GeneSymbol %in% mito_genes) %>%
-      dplyr::select(GeneSymbol, log2FC, Comparison) %>%
-      tidyr::pivot_wider(names_from = Comparison, values_from = log2FC)
+      dplyr::filter(
+    Comparison %in% comparisons,
+    GeneSymbol %in% mito_genes,
+    FDR < 0.05,
+    abs(log2FC) >= 1
+  ) %>%
+  dplyr::select(GeneSymbol, log2FC, Comparison) %>%
+  tidyr::pivot_wider(names_from = Comparison, values_from = log2FC)
     
-    mat_fc <- mat_fc[complete.cases(mat_fc), ]
-    
-    # Remove zero-variance rows
-    vars <- apply(mat_fc[,-1], 1, var, na.rm=TRUE)
-    mat_fc <- mat_fc[vars > 0, , drop=FALSE]
-    
-    if(nrow(mat_fc) < 2){
-      message("Skipping heatmap ", tag, ": less than 2 mito genes with variable log2FC")
-      return(NULL)
-    }
-    
-    vars <- apply(mat_fc[,-1], 1, var, na.rm=TRUE)
-    mat_fc_top <- mat_fc[order(vars, decreasing=TRUE)[1:min(topN, nrow(mat_fc))], ]
-    
-    row_labels <- fbgn2symbol[mat_fc_top$GeneSymbol]
-    row_labels[is.na(row_labels)] <- mat_fc_top$GeneSymbol
-    plot_mat <- as.matrix(mat_fc_top[,-1])
+    # Fill NAs with 0 for plotting
+mat_fc[is.na(mat_fc)] <- 0
+
+# Rank by max |log2FC|
+mat_fc$max_abs_LFC <- apply(abs(mat_fc[,-1]), 1, max, na.rm=TRUE)
+
+mat_fc_top <- mat_fc %>%
+  arrange(desc(max_abs_LFC)) %>%
+  slice_head(n = min(topN, nrow(mat_fc)))
+
+# Row labels
+row_labels <- fbgn2symbol[mat_fc_top$GeneSymbol]
+row_labels[is.na(row_labels)] <- mat_fc_top$GeneSymbol
+
+# Plotting matrix (exclude GeneSymbol and max_abs_LFC)
+plot_mat <- as.matrix(mat_fc_top[, !(colnames(mat_fc_top) %in% c("GeneSymbol","max_abs_LFC"))])
+
     
   } else if (data_source == "DESeq2") {
     if (is.null(res_unshr) | is.null(meta)) stop("res_unshr and meta must be provided for DESeq2 heatmap")
@@ -220,6 +225,7 @@ save_heatmap_unified <- function(tag,
       width=1800, height=1500, res=200, bg="white")
   pheatmap(z,
            labels_row = row_labels,
+           show_rownames = TRUE,
            cluster_rows=TRUE,
            cluster_cols=TRUE,
            annotation_col=ann,
