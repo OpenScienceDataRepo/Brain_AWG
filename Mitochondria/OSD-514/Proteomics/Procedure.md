@@ -137,12 +137,12 @@ dev.off()
 # Reorder meta_limma to match columns of expr_limma
 meta_limma <- meta %>%
   mutate(
-    condition2 = case_when(
+    condition = case_when(
       str_detect(sample, "^Earth") ~ "Earth",
       str_detect(sample, "^SF1g")  ~ "SF1g",
       str_detect(sample, "^SFug")  ~ "SFug"
     ),
-    condition2 = factor(condition2, levels = c("Earth","SF1g","SFug"))
+    condition = factor(condition, levels = c("Earth","SF1g","SFug"))
   )
 
 # Match sample names exactly
@@ -158,8 +158,8 @@ stopifnot(all(colnames(expr_limma) == meta_limma$sample))  # should be TRUE
 all(colnames(expr_limma) == meta_limma$sample)  # should return TRUE
 stopifnot(all(colnames(expr_limma) == meta_limma$sample))
 
-design <- model.matrix(~0 + condition2, meta_limma)
-colnames(design) <- levels(meta_limma$condition2)
+design <- model.matrix(~0 + condition, meta_limma)
+colnames(design) <- levels(meta_limma$condition)
 
 contrast_matrix <- makeContrasts(
   SF1g_vs_Earth = SF1g - Earth,
@@ -169,14 +169,14 @@ contrast_matrix <- makeContrasts(
 )
 meta_limma <- meta %>%
   mutate(
-    condition2 = case_when(
+    condition = case_when(
       str_detect(sample, "^Earth") ~ "Earth",
       str_detect(sample, "^SF1g")  ~ "SF1g",
       str_detect(sample, "^SFug")  ~ "SFug"
     ),
-    condition2 = factor(condition2, levels = c("Earth","SF1g","SFug"))
+    condition = factor(condition, levels = c("Earth","SF1g","SFug"))
   )
-table(meta_limma$condition2)
+table(meta_limma$condition)
 
 # LIMMA fitting
 fit <- lmFit(expr_limma, design)
@@ -246,11 +246,11 @@ top_proteins <- results_SF1g_vs_Earth %>%
 heat_mat <- expr_limma[top_proteins, ]
 
 ann <- meta_limma %>%
-  select(sample, condition2, sex, tmt_run) %>%
+  select(sample, condition, sex, tmt_run) %>%
   column_to_rownames("sample")
 
 # Order columns
-ord <- order(ann$condition2, ann$sex, ann$tmt_run)
+ord <- order(ann$condition, ann$sex, ann$tmt_run)
 heat_mat <- heat_mat[, ord]
 ann <- ann[ord, , drop=FALSE]
 
@@ -264,11 +264,11 @@ pheatmap(
   cluster_rows = TRUE,
   cluster_cols = FALSE,
   annotation_col = ann,
-  show_rownames = FALSE,
+  show_rownames = TRUE,
+  fontsize_row = 7,
   fontsize_col = 9,
   border_color = NA,
   main = "Top 50 Differential Proteins across Earth, SF1g, SFug"
 )
 dev.off()
-
 ```
