@@ -77,9 +77,6 @@ cat("Wrote:\n",
 
 # Quality Control
 ```
-# 0) Working directory
-setwd("~/Desktop/ADBR Mito/OSD-514")
-
 # 1) Load packages
 suppressPackageStartupMessages({
   library(tximport)
@@ -598,9 +595,6 @@ message("Saved PNGs to: ", file.path(OUT_DIR, "figs"))
 After analyzing and visualizing DESeq2 results, we decided to zero in on mitochondrially relevant genes and where they land on the spectrum of differentially expressed genes by performing GO Overrepresentation Analysis (ORA) on pathways of interest and related terms.
 
 ```
-# Working dir (edit if needed)
-setwd("~/Desktop/ADBR Mito/OSD-514")
-
 # Load Packages
 pkgs_cran <- c("ggplot2","ggrepel","pheatmap","dplyr")
 for (p in pkgs_cran) if (!requireNamespace(p, quietly=TRUE)) install.packages(p)
@@ -857,9 +851,6 @@ message("Saved focused PNGs to: ", file.path(OUT_DIR, "figs"))
 # GSEA (in R)
 
 ```
-# Working directory
-setwd("~/Desktop/ADBR Mito/OSD-514")
-
 # Packages
 pkgs_cran <- c("data.table","ggplot2")
 for (p in pkgs_cran) if (!requireNamespace(p, quietly=TRUE)) install.packages(p)
