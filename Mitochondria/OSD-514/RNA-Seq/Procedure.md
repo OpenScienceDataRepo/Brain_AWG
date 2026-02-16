@@ -9,8 +9,7 @@ Just rounding the “Unnormalized Counts” CSV throws away the information RSEM
 Because of this, the 24 raw count results were downloaded for each sample in each condition and collapsed into one matrix manually using the below code.
 
 ```
-# Set Working Directory
-setwd("~/Desktop/ADBR Mito/OSD-514")
+# Set Working Directory first
 
 # Set the output folder
 out_dir <- "Collapsed_Counts"
