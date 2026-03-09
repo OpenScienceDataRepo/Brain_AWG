@@ -1,8 +1,47 @@
 # Procedure
 
-## QC and DESeq2
+## FASTQ Raw Files
 
-The raw counts were not available. When I reviewed the original paper, however, I found the following supplementary file:
+We attempted to retrieve the raw files from GEO using [SRA Toolkit](https://github.com/ncbi/sra-tools/wiki/01.-Downloading-SRA-Toolkit) but kept getting errors. We switched approaches, attempting to retrieve them directly in R using the [GEOfastq Package](https://bioconductor.org/packages//release/bioc/vignettes/GEOfastq/inst/doc/GEOfastq.html). We ran the following code as a first step:
+
+```
+# install and load GEOquery if needed
+if (!requireNamespace("BiocManager", quietly=TRUE)) install.packages("BiocManager")
+BiocManager::install("GEOquery")
+
+suppressPackageStartupMessages({
+library(GEOquery)
+})
+
+# load the dataset
+gse <- getGEO("GSE99012", GSEMatrix = TRUE)
+gse <- gse[[1]]
+
+# extract SRA run accenssions
+meta <- pData(gse)
+
+sra_runs <- meta$relation
+sra_runs
+```
+It produced the following result:
+
+```
+[1] "Reanalyzed by: GSM3283389"                                      "Reanalyzed by: GSM3283390"                                      "BioSample: https://www.ncbi.nlm.nih.gov/biosample/SAMN07137747"
+ [4] "Reanalyzed by: GSM3283391"                                      "Reanalyzed by: GSM3283392"                                      "Reanalyzed by: GSM3283393"                                     
+ [7] "Reanalyzed by: GSM3283394"                                      "Reanalyzed by: GSM3283395"                                      "Reanalyzed by: GSM3283396"                                     
+[10] "Reanalyzed by: GSM3283397"                                      "Reanalyzed by: GSM3283398"                                      "BioSample: https://www.ncbi.nlm.nih.gov/biosample/SAMN07137731"
+[13] "Reanalyzed by: GSM3283399"                                      "Reanalyzed by: GSM3283400"                                      "Reanalyzed by: GSM3283401"                                     
+[16] "Reanalyzed by: GSM3283402"                                      "Reanalyzed by: GSM3283403"                                      "BioSample: https://www.ncbi.nlm.nih.gov/biosample/SAMN07137738"
+[19] "Reanalyzed by: GSM3283404"                                      "Reanalyzed by: GSM3283405"                                      "Reanalyzed by: GSM3283406"                                     
+[22] "BioSample: https://www.ncbi.nlm.nih.gov/biosample/SAMN07137770" "Reanalyzed by: GSM3283407"                                      "Reanalyzed by: GSM3283408"                                     
+[25] "Reanalyzed by: GSM3283409"                                      "BioSample: https://www.ncbi.nlm.nih.gov/biosample/SAMN07137735" "Reanalyzed by: GSM3283410"                                     
+[28] "Reanalyzed by: GSM3283411"                                      "Reanalyzed by: GSM3283412"                                      "BioSample: https://www.ncbi.nlm.nih.gov/biosample/SAMN07137766"
+[31] "Reanalyzed by: GSM3283413"                                      "BioSample: https://www.ncbi.nlm.nih.gov/biosample/SAMN07137764" "Reanalyzed by: GSM3283414"                                     
+[34] "Reanalyzed by: GSM3283415"                                      "Reanalyzed by: GSM3283416"
+```
+The dataset looked like processed/reanalyzed matrix, suggesting that the raw sequencing files don’t exist or aren’t accessible for this GEO entry. Therefore, no tool (GEOfastq, GEOquery, SRA Toolkit) could retrieve them.
+
+Upon reviewing the original paper, however, we found the following supplementary file:
 
 *Table S1. Differentially expressed genes identified from different comparisons under FDR ≤ 0.05 and absolute log2 fold change ≥ 1.2. (XLSX 1236 kb)*
 
