@@ -19,3 +19,4 @@ dependencies:
     - gdown
     - wget
     - rapids-singlecell
+    - ipynbname

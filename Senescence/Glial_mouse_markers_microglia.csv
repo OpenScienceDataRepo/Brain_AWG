@@ -1,0 +1,7 @@
+cellName,geneSymbol
+Resident-Microglia,Cd11b
+Perivascular-Macrophages,"Cd206,Cd163,Cd11b"
+Peripheral-Infiltrating,"Cd44,Cd45"
+Pro-Inflammatory-M1-Microglia,"Il12,Il23,Tnf"
+Anti-Inflammatory-M2-Microglia,"Il10,Tgfb"
+Disease-Associated-Microglia,"Tyrobp,B2m,Cd9,Apoe,Lpl,Cst7"
