@@ -1,6 +1,7 @@
 # Procedure
 ## FASTQ -> Count Matrices
-The FASTQ files for this dataset were downloaded from [this directory](https://www.ncbi.nlm.nih.gov/bioproject/?term=PRJNA747152). They were then converted to Count Matrices using the following code:
+The FASTQ files for this dataset were downloaded from [this directory](https://www.ncbi.nlm.nih.gov/bioproject/?term=PRJNA747152). They were then converted to Count Matrices using the [fastqc package](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/).
+
 ```
 cd /Volumes/Marians\ SSD     # changing the directory to where my pipeline is
 ls                           # verifying this is the correct folder
