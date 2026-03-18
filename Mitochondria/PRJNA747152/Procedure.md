@@ -1,4 +1,4 @@
-# FASTQ -> FASTQC -> HISAT2 -> Count Matrices
+# FASTQ -> Count Matrices
 
 ## 1. FASTQ -> FASTQC
 
@@ -32,7 +32,7 @@ Once that was set up, I ran fastqc on the PRJNA747152 FastQ files using the foll
 fastqc /Volumes/Marians\ SSD/ADBR\ Mito/PRJNA747152/FASTQ/* -o /Volumes/Marians\ SSD/ADBR\ Mito/PRJNA747152
 ```
 
-## 2. FASTQC -> HISAT2
+## 2. FASTQC -> BAM
 I moved the resulting FastQC files to a folder called "FastQC". I then used the [HISAT2 package](https://daehwankimlab.github.io/hisat2/download/) to align the reads to the reference genome.
 
 Note that some packages have to be installed and initialized if you don't have it already:
@@ -41,85 +41,56 @@ Note that some packages have to be installed and initialized if you don't have i
   [hisat2](https://daehwankimlab.github.io/hisat2/download/)
   [samtools](https://www.htslib.org/)
 
-The following bash file was created for simplicity, titled "run_alignment_with_monitor.sh":
+The following bash file was created for simplicity, titled "run_alignment_safe.sh":
 ```
 #!/bin/bash
 
-# RNA-seq alignment monitor
+# Run this script with: bash run_alignment_safe.sh
 
-# Check that we are running under the correct environment
-echo "Running in Conda environment: $CONDA_DEFAULT_ENV"
+# Paths
+FASTQ_DIR="/Volumes/Marians_SSD/ADBR_Mito/PRJNA747152/FASTQ"
+OUTPUT_DIR="/Volumes/Marians_SSD/ADBR_Mito/PRJNA747152"
+INDEX="/Volumes/Marians_SSD/dm6/genome"
+
+# Activate conda environment
+echo "Activating rnaseq_env..."
+# Ensure conda.sh is sourced so 'conda activate' works
+source /opt/homebrew/Caskroom/miniconda/base/etc/profile.d/conda.sh
+conda activate rnaseq_env
+
+# Confirm binaries
 echo "Using HISAT2 at: $(which hisat2)"
 echo "Using SAMtools at: $(which samtools)"
-echo ""
 
-# Directories (quote paths to handle spaces)
-FASTQ_DIR="$HOME/marians_ssd/ADBR_Mito/PRJNA747152/FASTQ"
-OUTPUT_DIR="$HOME/marians_ssd/ADBR_Mito/PRJNA747152"
-
-# Count total FASTQ files
+# Count total FASTQs
 TOTAL=$(ls "$FASTQ_DIR"/*.fastq.gz 2>/dev/null | wc -l)
-BAM_COUNT=$(ls "$OUTPUT_DIR"/*.bam 2>/dev/null | wc -l)
-SAM_COUNT=$(ls "$OUTPUT_DIR"/*.sam 2>/dev/null | wc -l)
+BAM_COUNT=0
 
-# List FASTQs that still need alignment
-echo "Files still needing alignment/BAM:"
+# Loop through FASTQ files
 for fq in "$FASTQ_DIR"/*.fastq.gz; do
     base=$(basename "$fq" .fastq.gz)
-    if [ ! -f "$OUTPUT_DIR/${base}.bam" ]; then
-        echo "  $base"
-    fi
-done
-echo ""
+    bam="$OUTPUT_DIR/${base}.bam"
 
-# Progress summary
-echo "=== Alignment Progress ==="
-echo "Total FASTQ files: $TOTAL"
-echo "BAM files completed: $BAM_COUNT"
-echo "SAM files present (not yet BAM): $SAM_COUNT"
-echo "Remaining files: $((TOTAL - BAM_COUNT))"
-echo "=========================="
-echo ""
-
-# Start alignment
-echo "Starting alignment for $TOTAL FASTQ files..."
-echo ""
-
-for fq in "$FASTQ_DIR"/*.fastq.gz; do
-    base=$(basename "$fq" .fastq.gz)
-    bam_file="$OUTPUT_DIR/${base}.bam"
-
-    if [ -f "$bam_file" ]; then
+    if [ -f "$bam" ]; then
         echo "[$base] BAM exists, skipping."
+        BAM_COUNT=$((BAM_COUNT + 1))
         continue
     fi
 
     echo "[$base] Aligning FASTQ..."
-    hisat2 -x "$OUTPUT_DIR/genome_index" -U "$fq" -S "$OUTPUT_DIR/${base}.sam"
-    
-    if [ $? -ne 0 ]; then
-        echo "Error: HISAT2 failed for $base. Skipping..."
-        continue
-    fi
+    hisat2 -x "$INDEX" -U "$fq" -S "$OUTPUT_DIR/${base}.sam"
 
     echo "[$base] Sorting SAM to BAM..."
-    samtools sort -o "$bam_file" "$OUTPUT_DIR/${base}.sam"
-    
-    if [ $? -ne 0 ]; then
-        echo "Error: SAMtools sort failed for $base."
-        continue
-    fi
+    samtools sort -o "$bam" "$OUTPUT_DIR/${base}.sam"
+    rm "$OUTPUT_DIR/${base}.sam"
 
-    echo "[$base] Done."
-    echo ""
+    BAM_COUNT=$((BAM_COUNT + 1))
+    echo "=== Progress: $BAM_COUNT / $TOTAL BAMs completed ==="
 done
 
-# Final summary
-BAM_COUNT=$(ls "$OUTPUT_DIR"/*.bam 2>/dev/null | wc -l)
 echo "All files processed."
-echo "Total BAM files: $BAM_COUNT"
 date
 ```
-Run it in the terminal with: ```conda run -n rnaseq_env "/Volumes/Marians SSD/run_alignment_with_monitor.sh"```
+
 ## Citations
 Kim, D., Paggi, J.M., Park, C. et al. Graph-based genome alignment and genotyping with HISAT2 and HISAT-genotype. Nat Biotechnol 37, 907–915 (2019). https://doi.org/10.1038/s41587-019-0201-4
