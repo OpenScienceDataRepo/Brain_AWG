@@ -93,4 +93,12 @@ date
 ```
 
 ## Citations
+Andrews S. (2010). FastQC: a quality control tool for high throughput sequence data. Available online at: http://www.bioinformatics.babraham.ac.uk/projects/fastqc
+
 Kim, D., Paggi, J.M., Park, C. et al. Graph-based genome alignment and genotyping with HISAT2 and HISAT-genotype. Nat Biotechnol 37, 907–915 (2019). https://doi.org/10.1038/s41587-019-0201-4
+
+Homebrew. (2026). The Homebrew package manager for macOS / Linux. Retrieved from https://brew.sh/
+
+Anaconda, Inc. (2026). Conda – Package, dependency, and environment management for any language. Retrieved from https://docs.conda.io/
+
+Danecek, P., Bonfield, J. K., Liddle, J., Marshall, J., Ohan, V., Pollard, M. O., … & Li, H. (2021). Twelve years of SAMtools and BCFtools. GigaScience, 10(2), giab008. https://doi.org/10.1093/gigascience/giab008
