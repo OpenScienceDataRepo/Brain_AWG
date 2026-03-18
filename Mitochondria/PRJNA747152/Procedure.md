@@ -41,58 +41,85 @@ Note that some packages have to be installed and initialized if you don't have i
   [hisat2](https://daehwankimlab.github.io/hisat2/download/)
   [samtools](https://www.htslib.org/)
 
+The following bash file was created for simplicity, titled "run_alignment_with_monitor.sh":
 ```
-# install homebrew
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+#!/bin/bash
 
-# install miniconda and initialize
-brew install --cask miniconda
-conda init zsh
-source ~/.zshrc
+# RNA-seq alignment monitor
 
-# create a clean RNA-seq environment and activate it
-conda create -n rnaseq_env -c bioconda -c conda-forge hisat2 samtools
-conda activate rnaseq_env
+# Check that we are running under the correct environment
+echo "Running in Conda environment: $CONDA_DEFAULT_ENV"
+echo "Using HISAT2 at: $(which hisat2)"
+echo "Using SAMtools at: $(which samtools)"
+echo ""
 
-# verify installation
-hisat2 --version
-samtools --version
+# Directories (quote paths to handle spaces)
+FASTQ_DIR="$HOME/marians_ssd/ADBR_Mito/PRJNA747152/FASTQ"
+OUTPUT_DIR="$HOME/marians_ssd/ADBR_Mito/PRJNA747152"
 
-# create clean aliases
-ln -s "/Volumes/Marians SSD" ~/marians_ssd
+# Count total FASTQ files
+TOTAL=$(ls "$FASTQ_DIR"/*.fastq.gz 2>/dev/null | wc -l)
+BAM_COUNT=$(ls "$OUTPUT_DIR"/*.bam 2>/dev/null | wc -l)
+SAM_COUNT=$(ls "$OUTPUT_DIR"/*.sam 2>/dev/null | wc -l)
 
-# run alignment
-for file in ~/marians_ssd/ADBR_Mito/PRJNA747152/FASTQ/*.fastq.gz
-do
-  base=$(basename "$file" .fastq.gz)
-  bamfile=~/marians_ssd/ADBR_Mito/PRJNA747152/${base}.bam
-  samfile=~/marians_ssd/ADBR_Mito/PRJNA747152/${base}.sam
+# List FASTQs that still need alignment
+echo "Files still needing alignment/BAM:"
+for fq in "$FASTQ_DIR"/*.fastq.gz; do
+    base=$(basename "$fq" .fastq.gz)
+    if [ ! -f "$OUTPUT_DIR/${base}.bam" ]; then
+        echo "  $base"
+    fi
+done
+echo ""
 
-  # If BAM already exists, skip
-  if [ -f "$bamfile" ]; then
-      echo "$bamfile already exists, skipping."
-      continue
-  fi
+# Progress summary
+echo "=== Alignment Progress ==="
+echo "Total FASTQ files: $TOTAL"
+echo "BAM files completed: $BAM_COUNT"
+echo "SAM files present (not yet BAM): $SAM_COUNT"
+echo "Remaining files: $((TOTAL - BAM_COUNT))"
+echo "=========================="
+echo ""
 
-  # If SAM exists but BAM does not, just convert SAM to BAM
-  if [ -f "$samfile" ]; then
-      echo "Converting existing $samfile to BAM"
-      samtools sort -@ 8 -o "$bamfile" "$samfile"
-      continue
-  fi
+# Start alignment
+echo "Starting alignment for $TOTAL FASTQ files..."
+echo ""
 
-  # Otherwise, run HISAT2 alignment
-  echo "Aligning $file with HISAT2"
-  hisat2 -p 8 -q --rna-strandness R \
-    -x ~/marians_ssd/dm6/genome \
-    -U "$file" \
-    -S "$samfile"
+for fq in "$FASTQ_DIR"/*.fastq.gz; do
+    base=$(basename "$fq" .fastq.gz)
+    bam_file="$OUTPUT_DIR/${base}.bam"
 
-  # Convert the newly created SAM to BAM
-  samtools sort -@ 8 -o "$bamfile" "$samfile"
+    if [ -f "$bam_file" ]; then
+        echo "[$base] BAM exists, skipping."
+        continue
+    fi
+
+    echo "[$base] Aligning FASTQ..."
+    hisat2 -x "$OUTPUT_DIR/genome_index" -U "$fq" -S "$OUTPUT_DIR/${base}.sam"
+    
+    if [ $? -ne 0 ]; then
+        echo "Error: HISAT2 failed for $base. Skipping..."
+        continue
+    fi
+
+    echo "[$base] Sorting SAM to BAM..."
+    samtools sort -o "$bam_file" "$OUTPUT_DIR/${base}.sam"
+    
+    if [ $? -ne 0 ]; then
+        echo "Error: SAMtools sort failed for $base."
+        continue
+    fi
+
+    echo "[$base] Done."
+    echo ""
 done
 
+# Final summary
+BAM_COUNT=$(ls "$OUTPUT_DIR"/*.bam 2>/dev/null | wc -l)
+echo "All files processed."
+echo "Total BAM files: $BAM_COUNT"
+date
 ```
-
+Run it in the terminal with: ```conda run -n rnaseq_env "/Volumes/Marians SSD/run_alignment_with_monitor.sh"```
 ## Citations
 Kim, D., Paggi, J.M., Park, C. et al. Graph-based genome alignment and genotyping with HISAT2 and HISAT-genotype. Nat Biotechnol 37, 907–915 (2019). https://doi.org/10.1038/s41587-019-0201-4
