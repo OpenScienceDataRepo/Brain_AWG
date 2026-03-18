@@ -94,8 +94,10 @@ date
 ## 3. Run featureCounts (Quantification)
 Using the [ensembl genome annotation](https://www.ensembl.org/) file and the [featureCounts package](https://academic.oup.com/bioinformatics/article/30/7/923/232889), we converted the BAM files into counts.
 ```
-wget https://ftp.ensembl.org/pub/release-115/gtf/drosophila_melanogaster/Drosophila_melanogaster.BDGP6.54.115.gtf.gz
-featureCounts -S 2 -a /Volumes/Marians_SSD/ADBR_Mito/PRJNA747152 -o /Volumes/Marians_SSD/ADBR_Mito/PRJNA747152/counts.txt /Volumes/Marians_SSD/ADBR_Mito/PRJNA747152/BAM 
+featureCounts -S 2 \
+  -a /path/to/Drosophila_melanogaster.BDGP6.54.115.gtf \
+  -o /Volumes/Marians_SSD/ADBR_Mito/PRJNA747152/counts.txt \
+  /Volumes/Marians_SSD/ADBR_Mito/PRJNA747152/BAM/*.bam
 ```
 
 ## Citations
