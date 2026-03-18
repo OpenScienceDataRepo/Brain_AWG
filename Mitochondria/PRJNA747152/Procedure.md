@@ -103,6 +103,13 @@ featureCounts \
   -a "/Volumes/Marians_SSD/ADBR_Mito/Drosophila_melanogaster.BDGP6.54.115.gtf" \
   -o "/Volumes/Marians_SSD/ADBR_Mito/PRJNA747152/counts.txt" \
   /Volumes/Marians_SSD/ADBR_Mito/PRJNA747152/BAM/*.bam
+
+# clean and trim counts list
+awk 'NR==2{for(i=7;i<=NF;i++){gsub(".*/","",$i); gsub(".bam","",$i)}} {printf "%s", $1; for(i=2;i<=6;i++) printf "\t%s", $i; for(i=7;i<=NF;i++) printf "\t%s", $i; printf "\n"}' counts.txt > clean_counts.txt
+tail -n +2 clean_counts.txt | cut -f1,6,7- > counts_gene_length_clean.txt
+
+# check result
+head -n 5 counts_gene_length_clean.txt
 ```
 
 ## Citations
