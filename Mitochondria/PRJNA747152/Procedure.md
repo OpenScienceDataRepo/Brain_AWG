@@ -49,7 +49,7 @@ The following bash file was created for simplicity, titled "run_alignment_safe.s
 
 # Paths
 FASTQ_DIR="/Volumes/Marians_SSD/ADBR_Mito/PRJNA747152/FASTQ"
-OUTPUT_DIR="/Volumes/Marians_SSD/ADBR_Mito/PRJNA747152"
+OUTPUT_DIR="/Volumes/Marians_SSD/ADBR_Mito/PRJNA747152/BAM"
 INDEX="/Volumes/Marians_SSD/dm6/genome"
 
 # Activate conda environment
@@ -92,9 +92,11 @@ echo "All files processed."
 date
 ```
 ## 3. Run featureCounts (Quantification)
-First, we needed a [ensembl genome annotation](https://www.ensembl.org/) file for this dataset. 
-
-Then, we used the [featureCounts package](https://academic.oup.com/bioinformatics/article/30/7/923/232889).
+Using the [ensembl genome annotation](https://www.ensembl.org/) file and the [featureCounts package](https://academic.oup.com/bioinformatics/article/30/7/923/232889), we converted the BAM files into counts.
+```
+wget https://ftp.ensembl.org/pub/release-115/gtf/drosophila_melanogaster/Drosophila_melanogaster.BDGP6.54.115.gtf.gz
+featureCounts -S 2 -a /Volumes/Marians_SSD/ADBR_Mito/PRJNA747152 -o /Volumes/Marians_SSD/ADBR_Mito/PRJNA747152/counts.txt /Volumes/Marians_SSD/ADBR_Mito/PRJNA747152/BAM 
+```
 
 ## Citations
 Andrews S. (2010). FastQC: a quality control tool for high throughput sequence data. Available online at: http://www.bioinformatics.babraham.ac.uk/projects/fastqc
