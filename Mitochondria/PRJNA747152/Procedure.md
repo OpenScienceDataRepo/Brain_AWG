@@ -91,6 +91,10 @@ done
 echo "All files processed."
 date
 ```
+## 3. Run featureCounts (Quantification)
+First, we needed a [ensembl genome annotation](https://www.ensembl.org/) file for this dataset. 
+
+Then, we used the [featureCounts package](https://academic.oup.com/bioinformatics/article/30/7/923/232889).
 
 ## Citations
 Andrews S. (2010). FastQC: a quality control tool for high throughput sequence data. Available online at: http://www.bioinformatics.babraham.ac.uk/projects/fastqc
