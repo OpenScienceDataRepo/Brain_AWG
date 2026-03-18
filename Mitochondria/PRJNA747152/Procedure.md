@@ -58,8 +58,40 @@ conda activate rnaseq_env
 hisat2 --version
 samtools --version
 
-hisat2 -q --rna-strandness R \
--x /Volumes/Marians\ SSD/dm6/genome \ -U /Volumes/Marians\ SSD/ADBR\ Mito/PRJNA747152/FASTQ/sample.fastq | samtools sort -o /Volumes/Marians\ SSD/ADBR\ Mito/PRJNA747152/sample.bam
+# create clean aliases
+ln -s "/Volumes/Marians SSD" ~/marians_ssd
+
+# run alignment
+for file in ~/marians_ssd/ADBR_Mito/PRJNA747152/FASTQ/*.fastq.gz
+do
+  base=$(basename "$file" .fastq.gz)
+  bamfile=~/marians_ssd/ADBR_Mito/PRJNA747152/${base}.bam
+  samfile=~/marians_ssd/ADBR_Mito/PRJNA747152/${base}.sam
+
+  # If BAM already exists, skip
+  if [ -f "$bamfile" ]; then
+      echo "$bamfile already exists, skipping."
+      continue
+  fi
+
+  # If SAM exists but BAM does not, just convert SAM to BAM
+  if [ -f "$samfile" ]; then
+      echo "Converting existing $samfile to BAM"
+      samtools sort -@ 8 -o "$bamfile" "$samfile"
+      continue
+  fi
+
+  # Otherwise, run HISAT2 alignment
+  echo "Aligning $file with HISAT2"
+  hisat2 -p 8 -q --rna-strandness R \
+    -x ~/marians_ssd/dm6/genome \
+    -U "$file" \
+    -S "$samfile"
+
+  # Convert the newly created SAM to BAM
+  samtools sort -@ 8 -o "$bamfile" "$samfile"
+done
+
 ```
 
 ## Citations
