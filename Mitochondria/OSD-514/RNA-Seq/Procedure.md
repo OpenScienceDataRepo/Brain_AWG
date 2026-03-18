@@ -1028,3 +1028,443 @@ for (tag in c("MG_vs_EARTH","1G_vs_EARTH","MG_vs_1G")) {
 
 message("\nAll done. See: ", normalizePath(GSEA_DIR))
 ```
+# More Comprehensive GSEA
+```
+#!/usr/bin/env Rscript
+
+# Gene ontology enrichment after DESeq2 differential expression
+# Usage: edit the filenames/parameters below and run in R/Rscript
+
+# ---- Parameters (edit as needed) ----
+counts_file <- "counts_DESeq_ready.csv"
+meta_file   <- "metadata_from_filenames.csv"
+organism    <- "drosophila" # "human", "mouse", or "drosophila"
+pval_cutoff <- 0.05
+lfc_cutoff  <- 1            # absolute log2 fold change threshold
+out_prefix  <- "DE_GO"      # prefix for output files
+orgdb <- "org.Dm.eg.db"
+# ------------------------------------
+
+# Install / load required packages (BiocManager will be used if needed)
+required_pkgs <- c("DESeq2", "clusterProfiler", "AnnotationDbi", "readr",
+                   "dplyr", "enrichplot")
+if (!requireNamespace("BiocManager", quietly=TRUE)) install.packages("BiocManager")
+for (p in required_pkgs) {
+  if (!requireNamespace(p, quietly=TRUE)) BiocManager::install(p, ask=FALSE)
+  library(p, character.only = TRUE)
+}
+
+# Choose organism-specific OrgDb
+library(org.Dm.eg.db)
+
+# Read input files
+counts <- read.csv("counts_DESeq_ready.csv", row.names = 1)
+
+
+meta_raw <- read.csv("metadata_from_filenames.csv", row.names = 1)
+meta_raw$sample <- gsub("-", ".", rownames(meta_raw)) # replace - with . to match count column names
+rownames(meta_raw) <- meta_raw$sample
+# Reorder metadata to match count columns
+meta <- meta_raw[colnames(counts), , drop = FALSE]
+colnames(meta)[2] <- "condition" # rename second column to "condition" for easier handling
+
+# Run a separate DESeq/contrast workflow now so we can produce all pairwise comparisons
+
+dds_pw <- DESeq2::DESeqDataSetFromMatrix(countData = counts,
+                                         colData = meta,
+                                         design = as.formula("~ condition"))
+dds_pw <- dds_pw[rowSums(DESeq2::counts(dds_pw)) > 1, ]
+dds_pw <- DESeq2::DESeq(dds_pw)
+
+# build all pairwise contrasts (A vs B where result uses contrast = c("condition","B","A") -> B vs A)
+conds <- unique(meta$condition)
+pairs <- t(combn(conds, 2))
+pairwise_results <- list()
+
+for (i in seq_len(nrow(pairs))) {
+  a <- pairs[i, 1]
+  b <- pairs[i, 2]
+  contrast_name <- paste0(b, "_vs_", a)
+  # obtain results (b vs a)
+  res_i <- DESeq2::results(dds_pw, contrast = c("condition", b, a))
+  res_df <- as.data.frame(res_i)
+  res_df$gene <- rownames(res_df)
+  # try to shrink if apeglm available
+  if (requireNamespace("apeglm", quietly = TRUE)) {
+    res_sh <- tryCatch(DESeq2::lfcShrink(dds_pw, contrast = c("condition", b, a), type = "apeglm"),
+                       error = function(e) NULL)
+    if (!is.null(res_sh)) {
+      res_df <- as.data.frame(res_sh)
+      res_df$gene <- rownames(res_sh)
+    }
+  }
+  # write full and significant result tables
+  full_fname <- paste0(out_prefix, "_", contrast_name, ".csv")
+  sig_fname  <- paste0(out_prefix, "_", contrast_name, "_sig.csv")
+  write.csv(res_df, file = full_fname, row.names = FALSE)
+  sig_df <- subset(res_df, !is.na(padj) & padj < pval_cutoff & abs(log2FoldChange) >= lfc_cutoff)
+  write.csv(sig_df, file = sig_fname, row.names = FALSE)
+  message(sprintf("Contrast %s: tested=%d; significant=%d -> %s (full) ; %s (sig)",
+                  contrast_name, nrow(res_df), nrow(sig_df), full_fname, sig_fname))
+  pairwise_results[[contrast_name]] <- list(full = res_df, sig = sig_df, files = c(full = full_fname, sig = sig_fname))
+}
+
+
+DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig <- pairwise_results[["SPACEFLIGHT_1G_vs_EARTH"]][["sig"]]
+DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig <- pairwise_results[["SPACEFLIGHT_MICROGRAVITY_vs_EARTH"]][["sig"]]
+DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig <- pairwise_results[["SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G"]][["sig"]]
+# helper to map gene IDs to SYMBOL using the OrgDb named in `orgdb`
+map_to_symbol <- function(df, id_col = "gene", orgdb_name = orgdb) {
+    if (!id_col %in% colnames(df)) return(df)
+    ids <- as.character(df[[id_col]])
+    if (all(is.na(ids) | ids == "")) return(df)
+
+    # try to guess keytype from id format
+    infer_keytype <- function(ids) {
+        ids <- ids[!is.na(ids) & ids != ""]
+        if (length(ids) == 0) return("SYMBOL")
+        if (all(grepl("^FBgn", ids))) return("FLYBASE")
+        if (all(grepl("^ENS", ids))) return("ENSEMBL")
+        if (all(grepl("^[0-9]+$", ids))) return("ENTREZID")
+        "SYMBOL"
+    }
+
+    keytype <- infer_keytype(ids)
+    orgdb_obj <- tryCatch(get(orgdb_name, inherits = TRUE), error = function(e) NULL)
+    if (is.null(orgdb_obj)) return(df)
+
+    keys <- unique(ids[!is.na(ids) & ids != ""])
+    sel <- tryCatch(AnnotationDbi::select(orgdb_obj, keys = keys, columns = "SYMBOL", keytype = keytype),
+                                    error = function(e) NULL)
+    if (is.null(sel) || nrow(sel) == 0 || !"SYMBOL" %in% colnames(sel)) return(df)
+
+    # match back to original order (first match kept)
+    sel_first <- sel[!duplicated(sel[[keytype]]), , drop = FALSE]
+    mapped <- setNames(sel_first$SYMBOL, sel_first[[keytype]])
+    # replace with symbol where available, otherwise keep original id
+    new_names <- ifelse(is.na(mapped[ids]), ids, mapped[ids])
+    df[[id_col]] <- as.character(new_names)
+    df
+}
+
+DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig <- map_to_symbol(DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig, "gene", orgdb)
+DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig <- map_to_symbol(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig, "gene", orgdb)
+DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig <- map_to_symbol(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig, "gene", orgdb)
+
+write.csv(DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig, file = "DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig.csv", quote=FALSE)
+write.csv(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig, file = "DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig.csv", quote=FALSE)
+write.csv(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig, file = "DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig.csv", quote=FALSE)
+
+library(enrichR)
+
+# Check sites and switch to fly
+listEnrichrSites()
+setEnrichrSite("FlyEnrichr")
+
+# Inspect available fly libraries
+fly_dbs <- listEnrichrDbs()
+head(fly_dbs$libraryName)
+
+# Pick GO libraries if available
+dbs_to_use <- grep("^GO_", fly_dbs$libraryName, value = TRUE)
+
+# Extract unique, non-missing fly gene symbols
+genes_1g_vs_earth <- unique(na.omit(DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig$gene))
+genes_mg_vs_earth <- unique(na.omit(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig$gene))
+genes_mg_vs_1g    <- unique(na.omit(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig$gene))
+
+# Run enrichment
+enrich_1g_vs_earth <- enrichr(genes_1g_vs_earth, dbs_to_use)
+enrich_mg_vs_earth <- enrichr(genes_mg_vs_earth, dbs_to_use)
+enrich_mg_vs_1g    <- enrichr(genes_mg_vs_1g, dbs_to_use)
+
+# Example: view GO Biological Process results
+head(enrich_1g_vs_earth[["GO_Biological_Process_2018"]])
+head(enrich_mg_vs_earth[["GO_Biological_Process_2018"]])
+head(enrich_mg_vs_1g[["GO_Biological_Process_2018"]])
+
+# Optional export
+printEnrich(enrich_1g_vs_earth, outFile = "txt")
+printEnrich(enrich_mg_vs_earth, outFile = "txt")
+printEnrich(enrich_mg_vs_1g, outFile = "txt")
+
+# GO Biological Process barplots
+plotEnrich(
+  enrich_1g_vs_earth[["GO_Biological_Process_2018"]],
+  showTerms = 15,
+  numChar = 120,
+  y = "Count",
+  orderBy = "P.value",
+  title = "1G vs Earth"
+)
+ggsave("GO_Biological_Process_1G_vs_Earth.png", width = 8, height = 6, dpi = 300)
+plotEnrich(
+  enrich_mg_vs_earth[["GO_Biological_Process_2018"]],
+  showTerms = 15,
+  numChar = 120,
+  y = "Count",
+  orderBy = "P.value",
+  title = "Microgravity vs Earth"
+)
+ggsave("GO_Biological_Process_Microgravity_vs_Earth.png", width = 8, height = 6, dpi = 300)
+plotEnrich(
+  enrich_mg_vs_1g[["GO_Biological_Process_2018"]],
+  showTerms = 15,
+  numChar = 120,
+  y = "Count",
+  orderBy = "P.value",
+  title = "Microgravity vs 1G"
+)
+ggsave("GO_Biological_Process_1G_vs_Microgravity.png", width = 8, height = 6, dpi = 300)
+
+# GO Molecular Function barplots
+plotEnrich(
+  enrich_1g_vs_earth[["GO_Molecular_Function_2018"]],
+  showTerms = 15,
+  numChar = 120,
+  y = "Count",
+  orderBy = "P.value",
+  title = "1G vs Earth"
+)
+ggsave("GO_Molecular_Function_1G_vs_Earth.png", width = 8, height = 6, dpi = 300)
+plotEnrich(
+  enrich_mg_vs_earth[["GO_Molecular_Function_2018"]],
+  showTerms = 15,
+  numChar = 120,
+  y = "Count",
+  orderBy = "P.value",
+  title = "Microgravity vs Earth"
+)
+ggsave("GO_Molecular_Function_Microgravity_vs_Earth.png", width = 8, height = 6, dpi = 300)
+plotEnrich(
+  enrich_mg_vs_1g[["GO_Molecular_Function_2018"]],
+  showTerms = 15,
+  numChar = 120,
+  y = "Count",
+  orderBy = "P.value",
+  title = "Microgravity vs 1G"
+)
+ggsave("GO_Molecular_Function_1G_vs_Microgravity.png", width = 8, height = 6, dpi = 300)
+
+# GO Cellular Component barplots
+plotEnrich(
+  enrich_1g_vs_earth[["GO_Cellular_Component_2018"]],
+  showTerms = 15,
+  numChar = 120,
+  y = "Count",
+  orderBy = "P.value",
+  title = "1G vs Earth"
+)
+ggsave("GO_Cellular_Component_1G_vs_Earth.png", width = 8, height = 6, dpi = 300)
+plotEnrich(
+  enrich_mg_vs_earth[["GO_Cellular_Component_2018"]],
+  showTerms = 15,
+  numChar = 120,
+  y = "Count",
+  orderBy = "P.value",
+  title = "Microgravity vs Earth"
+)
+ggsave("GO_Cellular_Component_Microgravity_vs_Earth.png", width = 8, height = 6, dpi = 300)
+plotEnrich(
+  enrich_mg_vs_1g[["GO_Cellular_Component_2018"]],
+  showTerms = 15,
+  numChar = 120,
+  y = "Count",
+  orderBy = "P.value",
+  title = "Microgravity vs 1G"
+)
+ggsave("GO_Cellular_Component_1G_vs_Microgravity.png", width = 8, height = 6, dpi = 300)
+
+
+# Now let's identify which enriched GO terms contain mitochondrial genes, and which genes those are
+library(org.Dm.eg.db)
+library(AnnotationDbi)
+library(dplyr)
+
+genes <- DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig$gene
+
+# get go annotations for these genes
+go <- AnnotationDbi::select(
+  org.Dm.eg.db,
+  keys = genes,
+  columns = c("GO","ONTOLOGY"),
+  keytype = "SYMBOL"
+)
+
+library(GO.db)
+library(AnnotationDbi)
+
+go_terms <- AnnotationDbi::select(
+  GO.db,
+  keys = unique(go$GO),
+  columns = c("TERM"),
+  keytype = "GOID"
+)
+
+go_annot <- go %>%
+  left_join(go_terms, by = c("GO" = "GOID"))
+
+mito_annotations <- go_annot %>%
+  filter(grepl("mitochond", TERM, ignore.case = TRUE))
+
+mito_genes <- unique(mito_annotations$SYMBOL)
+
+mito_terms <- enrich_mg_vs_earth[["GO_Biological_Process_2018"]] %>%
+  mutate(
+    gene_list = strsplit(Genes,";"),
+    mito_hits = sapply(gene_list, function(x)
+      paste(intersect(x, mito_genes), collapse=";")
+    )
+  ) %>%
+  filter(mito_hits != "")
+
+mito_terms %>%
+  mutate(score = -log10(Adjusted.P.value)) %>%
+  ggplot(aes(score, reorder(Term, score))) +
+  geom_point(size=4) +
+  labs(
+    x="-log10(FDR)",
+    y="GO term",
+    title="Enriched pathways containing mitochondrial genes"
+  ) +
+  theme_bw()
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(igraph)
+library(ggraph)
+library(ggplot2)
+
+# ----------------------------
+# INPUTS
+# ----------------------------
+# enrich_df <- enrich_mg_vs_earth[["GO_Biological_Process_2018"]]
+# enrich_df <- enrich_1g_vs_earth[["GO_Biological_Process_2018"]]
+enrich_df <- enrich_mg_vs_1g[["GO_Biological_Process_2018"]]
+# or use enrich_1g_vs_earth[["GO_Biological_Process"]], etc.
+
+# mito_genes should already exist
+# example:
+# mito_genes <- c("Hsp60C", "Porin2", "Ant2", "Cyt-c-d", "ATPsynbetaL", "COX6CL")
+
+# ----------------------------
+# BUILD TERM-GENE EDGE LIST
+# ----------------------------
+build_mito_cnet <- function(enrich_df, mito_genes, top_n_terms = 15, max_term_chars = 55) {
+  
+  term_gene_df <- enrich_df %>%
+    as_tibble() %>%
+    filter(!is.na(Term), !is.na(Adjusted.P.value), !is.na(Genes)) %>%
+    mutate(
+      gene_list = strsplit(Genes, ";"),
+      mito_hits = lapply(gene_list, function(x) intersect(x, mito_genes)),
+      n_mito_hits = lengths(mito_hits)
+    ) %>%
+    filter(n_mito_hits > 0) %>%
+    arrange(Adjusted.P.value, desc(n_mito_hits)) %>%
+    slice_head(n = top_n_terms) %>%
+    transmute(
+      term_full = Term,
+      term = str_trunc(Term, max_term_chars),
+      Adjusted.P.value,
+      minus_log10_fdr = -log10(Adjusted.P.value),
+      mito_hits
+    ) %>%
+    unnest_longer(mito_hits, values_to = "gene") %>%
+    filter(!is.na(gene), gene != "")
+  
+  if (nrow(term_gene_df) == 0) {
+    stop("No enriched terms contained any mitochondrial genes.")
+  }
+  
+  # edge list
+  edges <- term_gene_df %>%
+    select(from = term, to = gene, minus_log10_fdr, term_full)
+  
+  # node metadata
+  term_nodes <- term_gene_df %>%
+    distinct(term, term_full, minus_log10_fdr) %>%
+    transmute(
+      name = term,
+      node_type = "term",
+      score = minus_log10_fdr,
+      label = term
+    )
+  
+  gene_nodes <- term_gene_df %>%
+    distinct(gene) %>%
+    transmute(
+      name = gene,
+      node_type = "gene",
+      score = NA_real_,
+      label = gene
+    )
+  
+  nodes <- bind_rows(term_nodes, gene_nodes)
+  
+  list(edges = edges, nodes = nodes, term_gene_df = term_gene_df)
+}
+
+cnet_obj <- build_mito_cnet(enrich_df, mito_genes, top_n_terms = 12)
+
+# ----------------------------
+# MAKE GRAPH
+# ----------------------------
+g <- graph_from_data_frame(
+  d = cnet_obj$edges %>% select(from, to),
+  vertices = cnet_obj$nodes,
+  directed = FALSE
+)
+
+# ----------------------------
+# PLOT
+# ----------------------------
+set.seed(123)
+
+ggraph(g, layout = "fr") +
+  
+  geom_edge_link(
+    color = "grey70",
+    alpha = 0.5,
+    linewidth = 0.7
+  ) +
+  
+  geom_node_point(
+    aes(
+      size = ifelse(node_type == "term", score, 4),
+      fill = score
+    ),
+    shape = 21,
+    color = "black",
+    stroke = 0.3
+  ) +
+  
+  geom_node_text(
+    aes(label = label),
+    repel = TRUE,
+    size = 5
+  ) +
+  
+  scale_fill_gradient(
+    low = "blue",
+    high = "red",
+    na.value = "gold",
+    name = expression(-log[10]("FDR"))
+  ) +
+  
+  scale_size_continuous(
+    range = c(4,10),
+    guide = "none"
+  ) +
+  
+  labs(
+    title = "Mitochondrial genes driving enriched pathways",
+    subtitle = "Blue → red indicates increasing pathway significance"
+  ) +
+  
+  theme_void()
+# ggsave("mito_cnet_mg_vs_earth.png", width = 10, height = 8, dpi = 300)
+# ggsave("mito_cnet_1g_vs_earth.png", width = 10, height = 8, dpi = 300)
+ggsave("mito_cnet_mg_vs_1g.png", width = 10, height = 8, dpi = 300)
+```
