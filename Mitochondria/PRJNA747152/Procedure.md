@@ -134,107 +134,75 @@ OUT_DIR <- "DE_output"
 dir.create(file.path(OUT_DIR,"figs"), recursive=TRUE, showWarnings=FALSE)
 dir.create(file.path(OUT_DIR,"tables"), recursive=TRUE, showWarnings=FALSE)
 
-# 1. Paths & Read Files
+# 1. Load data
+counts <- read.delim("counts_gene_length_clean.txt", row.names=1, check.names=FALSE)
+counts_numeric <- counts[, 7:ncol(counts)]
 
-counts_file <- "counts_gene_length_clean.txt"
-meta_file   <- "meta.csv"
-
-counts <- read.delim(counts_file, row.names=1, check.names=FALSE)
-counts_numeric <- counts[, 7:ncol(counts)]  # numeric columns
-
-meta_full <- read.csv(meta_file, stringsAsFactors=FALSE)
-sample_names <- colnames(counts_numeric)
-
-# Subset metadata to match counts
-meta <- meta_full[meta_full$Run %in% sample_names, ]
+meta <- read.csv("meta.csv", stringsAsFactors=FALSE)
+meta <- meta[meta$Run %in% colnames(counts_numeric), ]
 rownames(meta) <- meta$Run
 
 # 2. Define condition groups
-
 meta$condition_group <- sapply(meta$treatment, function(x) {
-  if (x == "0 Gy gamma rays")        return("Control")
-  if (x == "0.4 Gy gamma rays")      return("LowGamma")
-  if (x == "10 Gy gamma rays")       return("HighGamma")
-  if (x == "0.4+10Gy gamma rays")    return("ComboGamma")
+  if (x == "0 Gy gamma rays") return("Control")
+  if (x == "0.4 Gy gamma rays") return("LowGamma")
+  if (x == "10 Gy gamma rays") return("HighGamma")
+  if (x == "0.4+10Gy gamma rays") return("ComboGamma")
   return(NA)
 })
 meta$condition_group <- factor(meta$condition_group,
                                levels=c("Control","LowGamma","HighGamma","ComboGamma"))
 
-# Optional: sex as factor
-if ("sex" %in% colnames(meta) && !is.factor(meta$sex)) meta$sex <- factor(meta$sex)
-
-# Optional: batch (flowcell + lane)
-if (!("batch" %in% colnames(meta)) && all(c("flowcell","lane") %in% colnames(meta))) {
-  meta$batch <- factor(paste(meta$flowcell, meta$lane, sep="_"))
-}
-
-# 3. Prepare DESeq2 dataset
-
-use_batch <- "batch" %in% colnames(meta) && nlevels(droplevels(meta$batch)) > 1
-use_sex   <- "sex"   %in% colnames(meta) && nlevels(droplevels(meta$sex))   > 1
-
-design_formula <- if (use_batch && use_sex) {
-  ~ batch + sex + condition_group
-} else if (use_batch) {
-  ~ batch + condition_group
-} else if (use_sex) {
-  ~ sex + condition_group
-} else {
-  ~ condition_group
-}
-message("Design: ", deparse(design_formula))
-
+# 3. DESeq2 dataset
 dds <- DESeqDataSetFromMatrix(
   countData = counts_numeric,
   colData   = meta,
-  design    = design_formula
+  design    = ~ condition_group
 )
 
-# Optional: remove genes with zero counts
+# Filter low counts
 dds <- dds[rowSums(counts(dds)) > 0, ]
 
 # Run DESeq
 dds <- DESeq(dds)
 
-# 4. DE Contrast Function
-
-run_contrast_simple <- function(var, levelA, levelB, tag) {
+# 4. Contrast function
+run_contrast <- function(var, levelA, levelB, tag) {
   res <- results(dds, contrast=c(var, levelA, levelB), alpha=0.05)
-  
-  # Save unshrunk DE table
   res_df <- as.data.frame(res)
   res_df$gene <- rownames(res_df)
-  write.csv(res_df, file.path(OUT_DIR, "tables", paste0("DE_", tag, "_unshrunk.csv")), row.names=FALSE)
   
-  # Shrink log2 fold change if coefficient exists
+  write.csv(res_df, file.path(OUT_DIR,"tables",paste0("DE_",tag,".csv")), row.names=FALSE)
+  
+  # Shrink LFC
   coef_name <- paste0(var, "_", levelA, "_vs_", levelB)
   res_shr_df <- NULL
   if (coef_name %in% resultsNames(dds)) {
     res_shr <- lfcShrink(dds, coef=coef_name, type="apeglm")
     res_shr_df <- as.data.frame(res_shr)
     res_shr_df$gene <- rownames(res_shr)
-    write.csv(res_shr_df, file.path(OUT_DIR, "tables", paste0("DE_", tag, "_LFCshrunk_apeglm.csv")), row.names=FALSE)
+    write.csv(res_shr_df,
+              file.path(OUT_DIR,"tables",paste0("DE_",tag,"_shrunk.csv")),
+              row.names=FALSE)
   }
   
-  # DE summary
+  # Summary
   sig <- subset(res_df, !is.na(padj) & padj < 0.05)
-  sig_lfc1 <- subset(sig, abs(log2FoldChange) >= 1)
-  message(sprintf("[%s] padj<0.05: %d; padj<0.05 & |LFC|>=1: %d", tag, nrow(sig), nrow(sig_lfc1)))
+  sig_lfc <- subset(sig, abs(log2FoldChange) >= 1)
+  message(sprintf("[%s] padj<0.05: %d | padj<0.05 & |LFC|>=1: %d",
+                  tag, nrow(sig), nrow(sig_lfc)))
   
-  invisible(list(res=res_df, res_shr=res_shr_df))
+  return(list(res=res_df, res_shr=res_shr_df))
 }
 
-# 5. Run radiation contrasts
+# 5. Run contrasts
+out_Low_vs_Control   <- run_contrast("condition_group","LowGamma","Control","Low_vs_Control")
+out_High_vs_Control  <- run_contrast("condition_group","HighGamma","Control","High_vs_Control")
+out_Combo_vs_Control <- run_contrast("condition_group","ComboGamma","Control","Combo_vs_Control")
+out_Combo_vs_High    <- run_contrast("condition_group","ComboGamma","HighGamma","Combo_vs_High")
+out_Combo_vs_Low     <- run_contrast("condition_group","ComboGamma","LowGamma","Combo_vs_Low")
 
-out_Low_vs_Control    <- run_contrast_simple("condition_group", "LowGamma",    "Control",      "Low_vs_Control")
-out_High_vs_Control   <- run_contrast_simple("condition_group", "HighGamma",   "Control",      "High_vs_Control")
-out_Combo_vs_Control  <- run_contrast_simple("condition_group", "ComboGamma", "Control",      "Combo_vs_Control")
-out_Combo_vs_High     <- run_contrast_simple("condition_group", "ComboGamma", "HighGamma",    "Combo_vs_High")
-out_Combo_vs_Low      <- run_contrast_simple("condition_group", "ComboGamma", "LowGamma",     "Combo_vs_Low")
-
-# 6. Curated mitochondrial gene set
-
+# 6. Mitochondrial gene set
 mito_go_bp <- c("GO:0006119","GO:0022900","GO:0006099","GO:0006635","GO:0000422")
 mito_go_cc <- c("GO:0005739","GO:0005743","GO:0005747","GO:0005753","GO:0005759")
 
@@ -248,69 +216,162 @@ all_go <- unique(c(
   .expand_offspring(mito_go_cc, GOCCOFFSPRING)
 ))
 
-go2genes <- AnnotationDbi::select(org.Dm.eg.db, keys=all_go, keytype="GO", columns="FLYBASE")
-mito_fbgn_curated <- unique(na.omit(go2genes$FLYBASE))
-message("Curated mito set size (FlyBase IDs): ", length(mito_fbgn_curated))
+go2genes <- AnnotationDbi::select(org.Dm.eg.db,
+                                  keys=all_go,
+                                  keytype="GO",
+                                  columns="FLYBASE")
+mito_fbgn <- unique(na.omit(go2genes$FLYBASE))
 
-# 7. Volcano plotting function (Option 1)
-
+# 7. ID → symbol
 toSym <- function(x) {
-  map_tbl <- AnnotationDbi::select(org.Dm.eg.db, keys=x, keytype="FLYBASE", columns="SYMBOL")
-  sym <- setNames(map_tbl$SYMBOL, map_tbl$FLYBASE)
-  y <- unname(sym[x]); y[is.na(y) | y==""] <- x[is.na(y) | y==""]
-  y
+  map <- AnnotationDbi::select(org.Dm.eg.db,
+                               keys=x,
+                               keytype="FLYBASE",
+                               columns="SYMBOL")
+  sym <- setNames(map$SYMBOL, map$FLYBASE)
+  y <- sym[x]
+  y[is.na(y)] <- x[is.na(y)]
+  return(y)
 }
 
-save_volcano_mito <- function(res_unshr, res_shr, tag, mito_fbgn, thr_p=0.05, thr_fc=1) {
-  vdf <- as.data.frame(res_unshr)
-  vdf$gene_id <- rownames(vdf)
-  
-  # Use shrunk LFC if available, otherwise unshrunk
-  if (!is.null(res_shr)) {
-    vdf$log2FC_shr <- res_shr[rownames(vdf), "log2FoldChange"]
-  } else {
-    vdf$log2FC_shr <- vdf$log2FoldChange
-  }
-  
+# 8. Volcano function
+save_volcano <- function(res_df, tag, mito_fbgn,
+                         thr_p=0.05, thr_fc=1) {
+  vdf <- res_df
+  vdf <- vdf[!is.na(vdf$padj), ]
+  vdf$padj[vdf$padj == 0] <- 1e-300
+  vdf$gene_id <- vdf$gene
   vdf$gene_symbol <- toSym(vdf$gene_id)
-  
+  vdf$log2FC <- vdf$log2FoldChange
   vdf$group <- "NS"
-  vdf$group[vdf$padj < thr_p & vdf$log2FC_shr >= thr_fc] <- "Up (sig)"
-  vdf$group[vdf$padj < thr_p & vdf$log2FC_shr <= -thr_fc] <- "Down (sig)"
-  vdf$group <- factor(vdf$group, levels=c("Down (sig)","NS","Up (sig)"))
+  vdf$group[vdf$padj < thr_p & vdf$log2FC >= thr_fc] <- "Up"
+  vdf$group[vdf$padj < thr_p & vdf$log2FC <= -thr_fc] <- "Down"
   
   lab_set <- intersect(mito_fbgn, vdf$gene_id)
-  if (!length(lab_set)) lab_set <- head(vdf[order(vdf$padj), "gene_id"], 12)
+  if(length(lab_set)==0) lab_set <- head(vdf[order(vdf$padj), "gene_id"], 12)
   
-  out <- file.path(OUT_DIR,"figs", paste0("volcano_mito_", tag, ".png"))
-  png(out, width=1800, height=1500, res=200, bg="white")
+  out <- file.path(OUT_DIR,"figs",paste0("volcano_",tag,".png"))
+  png(out, width=1800, height=1500, res=200)
   print(
-    ggplot(vdf, aes(x=log2FC_shr, y=-log10(padj), color=group)) +
-      geom_point(alpha=0.7, size=1.6, na.rm=TRUE) +
-      geom_point(data=subset(vdf, gene_id %in% lab_set), shape=21, stroke=0.7, size=2.8, color="black") +
-      geom_vline(xintercept=c(-thr_fc, thr_fc), linetype="dashed") +
+    ggplot(vdf, aes(x=log2FC, y=-log10(padj), color=group)) +
+      geom_point(alpha=0.7, size=1.5) +
+      geom_vline(xintercept=c(-thr_fc,thr_fc), linetype="dashed") +
       geom_hline(yintercept=-log10(thr_p), linetype="dashed") +
-      ggrepel::geom_text_repel(
-        data=subset(vdf, gene_id %in% lab_set),
-        aes(label=gene_symbol),
-        size=3, max.overlaps=40, box.padding=0.4, min.segment.length=0
-      ) +
-      scale_color_manual(values=c("Down (sig)"="#2C7BB6","NS"="grey60","Up (sig)"="#D7191C")) +
-      labs(x="Log2 fold change", y="-log10(FDR)",
-           title=paste0("Volcano (mitochondrial focus): ", gsub("_"," ", tag)),
-           subtitle="Dashed: |log2FC|=1 and FDR=0.05. Labels = curated mito genes (GO).") +
-      theme_classic() + theme(legend.position="top")
+      geom_point(data=subset(vdf, gene_id %in% lab_set),
+                 shape=21, color="black", size=2.5, stroke=0.6) +
+      ggrepel::geom_text_repel(data=subset(vdf, gene_id %in% lab_set),
+                               aes(label=gene_symbol),
+                               size=3, max.overlaps=40) +
+      scale_color_manual(values=c("Down"="#2C7BB6","NS"="grey70","Up"="#D7191C")) +
+      labs(title=paste("Volcano:", tag),
+           x="Log2 Fold Change",
+           y="-log10(FDR)") +
+      theme_classic() +
+      theme(legend.position="top")
   )
   dev.off()
 }
 
-# 8. Generate volcano plots
+# 9. Generate volcano plots
+save_volcano(out_Low_vs_Control$res,   "Low_vs_Control", mito_fbgn)
+save_volcano(out_High_vs_Control$res,  "High_vs_Control", mito_fbgn)
+save_volcano(out_Combo_vs_Control$res, "Combo_vs_Control", mito_fbgn)
+save_volcano(out_Combo_vs_High$res,    "Combo_vs_High", mito_fbgn)
+save_volcano(out_Combo_vs_Low$res,     "Combo_vs_Low", mito_fbgn)
 
-save_volcano_mito(out_Low_vs_Control$res,    out_Low_vs_Control$res_shr,    "Low_vs_Control",    mito_fbgn_curated)
-save_volcano_mito(out_High_vs_Control$res,   out_High_vs_Control$res_shr,   "High_vs_Control",   mito_fbgn_curated)
-save_volcano_mito(out_Combo_vs_Control$res,  out_Combo_vs_Control$res_shr,  "Combo_vs_Control",  mito_fbgn_curated)
-save_volcano_mito(out_Combo_vs_High$res,     out_Combo_vs_High$res_shr,     "Combo_vs_High",     mito_fbgn_curated)
-save_volcano_mito(out_Combo_vs_Low$res,      out_Combo_vs_Low$res_shr,      "Combo_vs_Low",      mito_fbgn_curated)
+# 10. PCA and boxplots
+vsd <- vst(dds, blind=TRUE)
+
+# PCA
+pca_plot <- plotPCA(vsd, intgroup="condition_group") + ggtitle("PCA: Condition Groups") + theme_classic()
+png(file.path(OUT_DIR, "figs", "PCA_condition_group.png"), width=1600, height=1200, res=200)
+print(pca_plot)
+dev.off()
+
+# Normalized counts boxplot
+norm_counts <- counts(dds, normalized=TRUE)
+png(file.path(OUT_DIR, "figs", "boxplot_normalized_counts.png"), width=1800, height=1200, res=200)
+boxplot(log2(norm_counts + 1),
+        las=2,
+        col="lightblue",
+        main="Normalized Counts (log2 scale)",
+        ylab="log2(count + 1)")
+dev.off()
+
+# 11. Heatmaps
+save_heatmap <- function(res_df, tag, top_n=50, mito_only=FALSE, mito_fbgn=NULL) {
+  df <- res_df
+  df <- df[!is.na(df$padj), ]
+  
+  if(mito_only && !is.null(mito_fbgn)) {
+    df <- df[df$gene %in% mito_fbgn, ]
+    if(nrow(df)==0) {
+      warning(paste("No mitochondrial genes found for", tag))
+      return(NULL)
+    }
+  }
+  
+  # Top N genes
+  df_top <- df[order(df$padj), ][1:min(top_n, nrow(df)), ]
+  
+  # Normalized counts
+  norm_mat <- counts(dds, normalized=TRUE)
+  mat <- norm_mat[df_top$gene, , drop=FALSE]
+  rownames(mat) <- toSym(rownames(mat))
+  mat_scaled <- t(scale(t(mat)))
+  
+  # Order columns by condition_group
+  col_order <- order(meta$condition_group)
+  mat_scaled <- mat_scaled[, col_order]
+  
+  ann_col <- data.frame(
+    Condition = meta$condition_group[col_order]
+  )
+  rownames(ann_col) <- rownames(meta)[col_order]
+  
+  # Condition colors
+  ann_colors <- list(
+    Condition = c(
+      Control="#1f77b4", LowGamma="#ff7f0e",
+      HighGamma="#2ca02c", ComboGamma="#d62728"
+    )
+  )
+  
+  out_file <- file.path(OUT_DIR,"figs",paste0("heatmap_", tag, ifelse(mito_only,"_mito",""), ".png"))
+  
+  png(out_file, width=2000, height=1600, res=200)
+  pheatmap(mat_scaled,
+           annotation_col = ann_col,
+           annotation_colors = ann_colors,
+           show_rownames = TRUE,
+           fontsize_row = 6,
+           cluster_rows = TRUE,        # cluster genes
+           cluster_cols = FALSE,       # keep columns grouped by condition
+           main = paste("Heatmap:", tag, ifelse(mito_only,"(Mitochondrial Genes)",""))
+  )
+  dev.off()
+}
+
+# 12. Generate heatmaps
+contrast_list <- list(
+  Low_vs_Control   = out_Low_vs_Control$res,
+  High_vs_Control  = out_High_vs_Control$res,
+  Combo_vs_Control = out_Combo_vs_Control$res,
+  Combo_vs_High    = out_Combo_vs_High$res,
+  Combo_vs_Low     = out_Combo_vs_Low$res
+)
+
+# Full heatmaps
+for(tag in names(contrast_list)) {
+  save_heatmap(contrast_list[[tag]], tag, top_n=50, mito_only=FALSE)
+}
+
+# Mitochondrial-specific heatmaps
+for(tag in names(contrast_list)) {
+  save_heatmap(contrast_list[[tag]], tag, top_n=50, mito_only=TRUE, mito_fbgn=mito_fbgn)
+}
+
+message("All heatmaps saved in ", file.path(OUT_DIR,"figs"))
 ```
 
 # Citations
