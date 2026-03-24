@@ -10,5 +10,5 @@ Endothelial,"Eng,Pecam1,Flt1,Kdr,Pecam1,Egfl7,Emcn,Tie1,Egfl7,Cd34,Eng,Tek,Cdh5,
 Neuroepithelial,"Hes3,Nes,Sox2,Sox10,Notch1,Hes1"
 Excitatory,"Slc6a1,Gls,Tcf4,Grin1,Grin2b,Slc30a3,Slc17a7,Baiap3,Slc17a6"
 Inhibitory,"Gabbr2,Gabbr1,Slc32a1,Oprm1,Gad2,Htr2c,Gad1,Slc6a1"
-Macrophage (BAM),"Ms4a7,Lyve1,Mhcii,Sall1,Clec12a,Cd163,Cd74,P2ry12,Cd206,Cd38,Fxyd5,Cst7"
+Macrophage (BAM),"Ms4a7,Lyve1,Mhcii,Sall1,Clec12a,Cd163,Cd74,P2ry12,Cd206,Cd38,Fxyd5,Cst7,Cybb,Tgfbi"
 Microglial (DAM),"Cd9,Apoe,Trem2,Tyrobp,Clec7a,Cd63,Lgals3,Axl,Spp1,Cstb,Ctsz,Cstl1,Ctsd,Lpl,Itgax,B2m,Cst7,Csf1,Gpnmb,Igf1,Lilrb4,Irf8,Fth1,Lyz2,Ccl3,Ccl6,Timp2"
