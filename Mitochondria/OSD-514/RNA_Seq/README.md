@@ -13,13 +13,13 @@ OSD-514/
 				├── GSEA/
 						├── tables/
 						└── figs/
-    ├── QC_Sex_Cov/		             # Sex-stratified QC, sex as covariate
+    ├── QC_Sex_Cov/		             # Sex-stratified QC, sex as interaction term
 				├── tables/
 				└── figs/
-		├── DEG_Sex_Cov/		     # Sex-stratified DEG, sex as covariate
+		├── DEG_Sex_Cov/		     # Sex-stratified DEG, sex as interaction term
 				├── tables/
 				└── figs/
-    └── GSEA_Sex_Cov/		          # Sex-stratified GSEA, sex as covariate
+    └── GSEA_Sex_Cov/		          # Sex-stratified GSEA, sex as interaction term
 				├── tables/
 				└── figs/
 └── Proteomics/
