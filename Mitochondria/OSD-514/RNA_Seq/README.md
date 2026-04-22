@@ -13,10 +13,7 @@ OSD-514/
 				├── GSEA/
 						├── tables/
 						└── figs/
-    ├── QC_Sex_Strat/		             # Sex-stratified QC, sex as interaction term
-				├── tables/
-				└── figs/
-		├── DEG_Sex_Strat/		     # Sex-stratified DEG, sex as interaction term
+		├── RESULTS_Sex_Strat/		     # Sex-stratified DEG, sex as interaction term
 				├── tables/
 				└── figs/
     └── GSEA_Sex_Strat/		          # Sex-stratified GSEA, sex as interaction term
