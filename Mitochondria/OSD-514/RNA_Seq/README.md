@@ -34,12 +34,12 @@ The 24 files compiled are also not raw counts files. The *.genes.results files f
 
 Just rounding the “Unnormalized Counts” CSV throws away the information RSEM provides. It biases low counts, meaning small fractional differences can flip to 0 or 1 after rounding, distorting dispersion and p-values. It also breaks length-aware normalization since tximport+DESeq2 can properly correct for gene length and library size.
 
-Because of this, the 24 raw count results were downloaded for each sample in each condition (saved into the path OSD-514 > RNA-Seq > RawCounts) and collapsed into one matrix manually using the Collapsed_Counts.r code in this folder.
+Because of this, the 24 raw count results were downloaded for each sample in each condition (saved into the path OSD-514 > RNA-Seq > RawCounts) and collapsed into one matrix manually using the [Collapsed_Counts.r](Mitochondria/OSD-514/RNA_Seq/COLLAPSED_COUNTS.r) code in this folder.
 
 # QC & Downstream Analysis
 From here, we ran two different paths of downstream analysis:
 1. **General:** Tests what changes with condition (ignoring sex)
-2. **Sex-Stratified:** Tests what changes with condition (after accounting for sex differences)?
+2. **Sex-Stratified:** Tests what changes with condition (after accounting for sex differences)
 
 ## 01. General Pathway
 The script for the full pathway can be found here.
@@ -51,7 +51,7 @@ The following processes were run on the data:
 4. Mito-Specific GO ORA
 5. GSEA
 
-We also created a script that would quantify the DEGs and DEPs by sex and condition. This was done to create a comparative figure for the manuscript, and can be found here.
+We also created a script that would quantify the DEGs and DEPs by sex and condition. This was done to create a comparative figure for the manuscript, and can be found [here](Mitochondria/OSD-514/RNA_Seq/01. GENERAL_PATHWAY/FIGURE3A_SEX_STRAT.r).
 
 ## 02. Sex-Stratified Pathway
 The script for the full pathway can be found here.
