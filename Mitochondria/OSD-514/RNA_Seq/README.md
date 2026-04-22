@@ -13,13 +13,13 @@ OSD-514/
 				├── GSEA/
 						├── tables/
 						└── figs/
-    ├── QC_Sex_Cov/		             # Sex-stratified QC, sex as interaction term
+    ├── QC_Sex_Strat/		             # Sex-stratified QC, sex as interaction term
 				├── tables/
 				└── figs/
-		├── DEG_Sex_Cov/		     # Sex-stratified DEG, sex as interaction term
+		├── DEG_Sex_Strat/		     # Sex-stratified DEG, sex as interaction term
 				├── tables/
 				└── figs/
-    └── GSEA_Sex_Cov/		          # Sex-stratified GSEA, sex as interaction term
+    └── GSEA_Sex_Strat/		          # Sex-stratified GSEA, sex as interaction term
 				├── tables/
 				└── figs/
 └── Proteomics/
@@ -38,8 +38,8 @@ Because of this, the 24 raw count results were downloaded for each sample in eac
 
 # QC & Downstream Analysis
 From here, we ran two different paths of downstream analysis:
-1. **General:** Tests what changes with condition (ignoring sex)
-2. **Sex-Stratified:** Tests what changes with condition (after accounting for sex differences)
+1. **General:** Tests what changes with condition (after accounting for sex differences)
+2. **Sex-Stratified:** Tests what changes with condition (including sex-specific effects)
 
 ## 01. General Pathway
 The script for the full pathway can be found here.
