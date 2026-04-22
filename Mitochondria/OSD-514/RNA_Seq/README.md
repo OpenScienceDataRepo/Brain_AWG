@@ -51,7 +51,7 @@ The following processes were run on the data:
 4. Mito-Specific GO ORA
 5. GSEA
 
-We also created a script that would quantify the DEGs and DEPs by sex and condition. This was done to create a comparative figure for the manuscript, and can be found [here](Mitochondria/OSD-514/RNA_Seq/01. GENERAL_PATHWAY/FIGURE3A_SEX_STRAT.r).
+We also created a script that would quantify the DEGs and DEPs by sex and condition. This was done to create a comparative figure for the manuscript, and can be found [here](Mitochondria/OSD-514/RNA_Seq/01.GENERAL_PATHWAY/FIGURE3A_SEX_STRAT.r).
 
 ## 02. Sex-Stratified Pathway
 The script for the full pathway can be found here.
