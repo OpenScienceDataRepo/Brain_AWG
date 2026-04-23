@@ -11,18 +11,29 @@ OSD-514/
 		├── RESULTS_OSD514/		     # General pathway, sex factored out
 				├── tables/
 				├── figs/
-				├── GSEA/
-						├── tables/
-						└── figs/
+		├── GSEA/					# General pathway, sex factored out
+			├── tables/
+			└── figs/
 		├── RESULTS_Sex_Strat/		     # Sex-stratified DEG, sex as interaction term
 				├── tables/
 				└── figs/
-    └── GSEA_Sex_Strat/		          # Sex-stratified GSEA, sex as interaction term
+		└── GSEA_Sex_Strat/		          # Sex-stratified GSEA, sex as interaction term
 				├── tables/
 				└── figs/
 └── Proteomics/
 		├── TMT_all/
-		└── TMT_COMBINED/
+		├── RESULTS_OSD514/		     # General pathway, sex factored out
+				├── tables/
+				├── figs/
+		├── GSEA/					# General pathway, sex factored out
+			├── tables/
+			└── figs/
+		├── RESULTS_Sex_Strat/		     # Sex-stratified LIMMA, sex as interaction term
+				├── tables/
+				└── figs/
+		└── GSEA_Sex_Strat/		          # Sex-stratified GSEA, sex as interaction term
+				├── tables/
+				└── figs/
 ```
 # Data Collection
 The following processed proteomic files from OSD-514 were used for analysis:
@@ -33,3 +44,5 @@ The following processed proteomic files from OSD-514 were used for analysis:
 4. OSD-514_metadata_OSD-514-ISA.zip (contained metadata)
 
 The TMT files were manually added to a folder called "TMT_all" in order to be combined into one matrix using [this script.](Mitochondria/OSD-514/Proteomics/CombineTMT.r)
+
+QC was performed on the data before splitting into (1) general and (2) sex-stratified pathways. The script for QC can be [found here.]()
