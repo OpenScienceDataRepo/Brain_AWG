@@ -10,18 +10,29 @@ OSD-514/
 		├── RESULTS_OSD514/		     # General pathway, sex factored out
 				├── tables/
 				├── figs/
-				├── GSEA/
-						├── tables/
-						└── figs/
+		├── GSEA/					# General pathway, sex factored out
+			├── tables/
+			└── figs/
 		├── RESULTS_Sex_Strat/		     # Sex-stratified DEG, sex as interaction term
 				├── tables/
 				└── figs/
-    └── GSEA_Sex_Strat/		          # Sex-stratified GSEA, sex as interaction term
+		└── GSEA_Sex_Strat/		          # Sex-stratified GSEA, sex as interaction term
 				├── tables/
 				└── figs/
 └── Proteomics/
 		├── TMT_all/
-		└── TMT_COMBINED/
+		├── RESULTS_OSD514/		     # General pathway, sex factored out
+				├── tables/
+				├── figs/
+		├── GSEA/					# General pathway, sex factored out
+			├── tables/
+			└── figs/
+		├── RESULTS_Sex_Strat/		     # Sex-stratified LIMMA, sex as interaction term
+				├── tables/
+				└── figs/
+		└── GSEA_Sex_Strat/		          # Sex-stratified GSEA, sex as interaction term
+				├── tables/
+				└── figs/
 ```
 # Extract Raw Counts
 
