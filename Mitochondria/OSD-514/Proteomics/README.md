@@ -45,4 +45,35 @@ The following processed proteomic files from OSD-514 were used for analysis:
 
 The TMT files were manually added to a folder called "TMT_all" in order to be combined into one matrix using [this script.](Mitochondria/OSD-514/Proteomics/CombineTMT.r)
 
-QC was performed on the data before splitting into (1) general and (2) sex-stratified pathways. The script for QC can be [found here.]()
+# QC
+From here, we ran QC for downstream analysis. That script can be found here.
+
+# Downstream Analysis
+After QC, the pathway was split into two:
+1. **General:** Tests what changes with condition (after accounting for sex differences)
+2. **Sex-Stratified:** Tests what changes with condition (including sex-specific effects)
+
+## 01. General Pathway
+The script for the full pathway can be found here.
+
+The following processes were run on the data:
+1. Quality Control
+2. LIMMA
+3. Visualization (Volcano Plots, Heatmaps, etc)
+4. Mito-Specific GO ORA
+5. GSEA
+
+We also created a script that would quantify the DEGs and DEPs by sex and condition. This was done to create a comparative figure for the manuscript, and can be found here.
+
+## 02. Sex-Stratified Pathway
+The script for the full pathway can be found here.
+
+The following processes were run on the data:
+1. Quality Control
+2. LIMMA
+3. Visualization (Volcano Plots, Heatmaps, etc)
+4. Mito-Specific GO ORA
+5. GSEA
+
+## 03. RNA_Seq
+The RNA_Seq processing followed the same logic— one general, one sex-stratified— and can be found here.
