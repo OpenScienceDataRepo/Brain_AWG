@@ -32,4 +32,4 @@ The following processed proteomic files from OSD-514 were used for analysis:
 3. GLDS-514_proteomics_TMTa.tar.gz
 4. OSD-514_metadata_OSD-514-ISA.zip (contained metadata)
 
-The TMT files were manually added to a folder called "TMT_all" in order to be combined into one matrix using this script.
+The TMT files were manually added to a folder called "TMT_all" in order to be combined into one matrix using [this script.](Mitochondria/OSD-514/Proteomics/CombineTMT.r)
