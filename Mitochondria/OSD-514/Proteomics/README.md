@@ -46,7 +46,7 @@ The following processed proteomic files from OSD-514 were used for analysis:
 The TMT files were manually added to a folder called "TMT_all" in order to be combined into one matrix using [this script.](Mitochondria/OSD-514/Proteomics/CombineTMT.r)
 
 # QC
-From here, we ran QC for downstream analysis. That script can be found here.
+From here, we ran QC for downstream analysis. That script can be [found here.](Mitochondria/OSD-514/Proteomics/Proteomics_QC.r)
 
 # Downstream Analysis
 After QC, the pathway was split into two:
