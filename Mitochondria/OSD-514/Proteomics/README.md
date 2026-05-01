@@ -60,8 +60,7 @@ The following processes were run on the data:
 1. Quality Control
 2. LIMMA
 3. Visualization (Volcano Plots, Heatmaps, etc)
-4. Mito-Specific GO ORA
-5. GSEA
+4. GSEA
 
 We also created a script that would quantify the DEGs and DEPs by sex and condition. This was done to create a comparative figure for the manuscript, and can be found here.
 
@@ -72,8 +71,7 @@ The following processes were run on the data:
 1. Quality Control
 2. LIMMA
 3. Visualization (Volcano Plots, Heatmaps, etc)
-4. Mito-Specific GO ORA
-5. GSEA
+4. GSEA
 
 ## 03. RNA_Seq
 The RNA_Seq processing followed the same logic— one general, one sex-stratified— and can be found here.
