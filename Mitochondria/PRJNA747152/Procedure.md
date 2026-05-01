@@ -114,7 +114,7 @@ head -n 5 counts_gene_length_clean.txt
 # Mito-Specific DEG and Visualization
 ```
 # 0. Setup
-setwd("/Volumes/Marians_SSD/ADBR_Mito/PRJNA747152")
+#Set Working Directory Here
 
 # Load packages
 pkgs_cran <- c("ggplot2","ggrepel","pheatmap","dplyr")
@@ -131,12 +131,13 @@ suppressPackageStartupMessages({
 
 # Output directories
 OUT_DIR <- "DE_output"
+dir.create(file.path(OUT_DIR), recursive=TRUE, showWarnings=FALSE)
 dir.create(file.path(OUT_DIR,"figs"), recursive=TRUE, showWarnings=FALSE)
 dir.create(file.path(OUT_DIR,"tables"), recursive=TRUE, showWarnings=FALSE)
 
 # 1. Load data
 counts <- read.delim("counts_gene_length_clean.txt", row.names=1, check.names=FALSE)
-counts_numeric <- counts[, 7:ncol(counts)]
+counts_numeric <- counts[, 2:ncol(counts)]
 
 meta <- read.csv("meta.csv", stringsAsFactors=FALSE)
 meta <- meta[meta$Run %in% colnames(counts_numeric), ]
@@ -161,7 +162,7 @@ dds <- DESeqDataSetFromMatrix(
 )
 
 # Filter low counts
-dds <- dds[rowSums(counts(dds)) > 0, ]
+dds <- dds[rowSums(counts(dds)) > 10, ]
 
 # Run DESeq
 dds <- DESeq(dds)
@@ -281,6 +282,27 @@ save_volcano(out_Combo_vs_Low$res,     "Combo_vs_Low", mito_fbgn)
 
 # 10. PCA and boxplots
 vsd <- vst(dds, blind=TRUE)
+
+# Transform counts for data visualization
+rld <- rlog(dds, blind=TRUE)
+
+# Plot PCA
+# Extract PCA data
+pcaData <- plotPCA(rld, intgroup = "condition_group", returnData = TRUE)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+# Plot manually
+ggplot(pcaData, aes(PC1, PC2, color = condition_group)) +
+  scale_color_manual(values = c("Control" = "#0072B2", "LowGamma" = "#E69F00", "HighGamma" = "#5e56c3", "ComboGamma" = "#d62728")) +
+  geom_point(size = 3) +
+  geom_text_repel(aes(label = colnames(rld))) +
+  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  theme_classic()
+ggsave(file.path(OUT_DIR, "figs", "PCA_condition_group_labeled.png"), width = 6, height = 5, dpi = 300)
+
+
+
 
 # PCA
 pca_plot <- plotPCA(vsd, intgroup="condition_group") + ggtitle("PCA: Condition Groups") + theme_classic()
