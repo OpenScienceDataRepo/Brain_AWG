@@ -25,8 +25,16 @@ dir.create(file.path(GSEA_DIR, "tables"), recursive=TRUE, showWarnings=FALSE)
 
 ## 1. IMPORT FILES + METADATA
 
-files <- list.files(".", pattern="\\.genes\\.results$", full.names=TRUE, recursive=TRUE)
-stopifnot(length(files) > 0)
+files <- list.files(
+  path = "/Volumes/Marians_SSD/ADBR_Mito/OSD-514/RNA_Seq/RawCounts",
+  pattern = "\\.genes\\.results$",
+  full.names = TRUE,
+  recursive = TRUE
+)
+if (length(files) == 0) {
+  stop("No *.genes.results files found. Make sure you've downloaded the 24 '...genes.results' files from OSDR.")
+}
+message("Found ", length(files), " *.genes.results files.")
 
 b <- basename(files)
 
@@ -147,6 +155,11 @@ for (nm in names(contrasts)) {
     geom_point(alpha=0.6) +
     geom_vline(xintercept=c(-1,1), linetype="dashed") +
     geom_hline(yintercept=-log10(0.05), linetype="dashed") +
+    scale_color_manual(values = c(
+      "Up" = "red",
+      "Down" = "blue",
+      "NA" = "grey"
+    ))
     theme_classic() +
     labs(title=nm)
 
