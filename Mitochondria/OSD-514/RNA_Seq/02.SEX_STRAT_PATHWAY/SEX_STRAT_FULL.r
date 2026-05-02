@@ -114,208 +114,185 @@ png(file.path(OUT_DIR,"figs/dispersion.png"))
 plotDispEsts(dds)
 dev.off()
 
-## 5. DIFFERENTIAL EXPRESSION
+## 5. DIFFERENTIAL EXPRESSION + store results objects
 
-get_res <- function(a,b) {
-  results(dds, contrast=c("condition_group", a, b))
+library(ggrepel)
+
+toSym <- function(ids) {
+  ids_clean <- gsub("\\..*$", "", ids)
+  syms <- mapIds(org.Dm.eg.db,
+                 keys      = ids_clean,
+                 column    = "SYMBOL",
+                 keytype   = "FLYBASE",
+                 multiVals = "first")
+  ifelse(is.na(syms), ids, syms)
 }
 
 contrasts <- list(
-  MG_vs_E  = c("SPACEFLIGHT_MICROGRAVITY","EARTH"),
-  G1_vs_E  = c("SPACEFLIGHT_1G","EARTH"),
-  MG_vs_1G = c("SPACEFLIGHT_MICROGRAVITY","SPACEFLIGHT_1G")
+  MG_vs_E  = c("SPACEFLIGHT_MICROGRAVITY", "EARTH"),
+  G1_vs_E  = c("SPACEFLIGHT_1G",           "EARTH"),
+  MG_vs_1G = c("SPACEFLIGHT_MICROGRAVITY", "SPACEFLIGHT_1G")
 )
 
+res_list <- list()
+
 for (nm in names(contrasts)) {
-
-  res <- get_res(contrasts[[nm]][1], contrasts[[nm]][2])
-  df <- as.data.frame(res)
-  df$gene <- rownames(df)
-
-  write.csv(df,
-            file.path(OUT_DIR,"tables",paste0("DE_",nm,".csv")),
-            row.names=FALSE)
-
-  message(nm, " sig genes: ", sum(df$padj < 0.05, na.rm=TRUE))
+  a <- contrasts[[nm]][1]; b <- contrasts[[nm]][2]
+  res     <- results(dds, contrast=c("condition_group", a, b))
+  res_shr <- lfcShrink(dds, contrast=c("condition_group", a, b), type="ashr")
+  res_list[[nm]] <- list(res=res, res_shr=res_shr)
+  message(nm, " done — ", sum(as.data.frame(res)$padj < 0.05, na.rm=TRUE), " sig genes")
 }
 
-## 6. VISUALS (VOLCANO + HEATMAP)
+## 6. VISUALS — volcano
 
-for (nm in names(contrasts)) {
-
-  res <- get_res(contrasts[[nm]][1], contrasts[[nm]][2])
+save_volcano <- function(res, res_shr, tag, thr_p=0.05, thr_fc=1) {
+  
   df <- as.data.frame(res)
-  df$gene <- rownames(df)
-
+  df$gene       <- rownames(df)
+  df$log2FC_shr <- as.data.frame(res_shr)[df$gene, "log2FoldChange"]
+  df$gene_symbol <- toSym(df$gene)
+  
   df$group <- "NS"
-  df$group[df$padj < 0.05 & df$log2FoldChange > 1] <- "Up"
-  df$group[df$padj < 0.05 & df$log2FoldChange < -1] <- "Down"
+  df$group[!is.na(df$padj) & df$padj < thr_p & df$log2FoldChange >  thr_fc] <- "Up"
+  df$group[!is.na(df$padj) & df$padj < thr_p & df$log2FoldChange < -thr_fc] <- "Down"
+  
+  lab_set <- head(df$gene[order(df$padj)], 15)
+  
+  out <- file.path(OUT_DIR, "figs", paste0("volcano_", tag, ".png"))
+  png(out, width=1800, height=1500, res=200, bg="white")
+  print(
+    ggplot(df, aes(x=log2FC_shr, y=-log10(padj), color=group)) +
+      geom_point(alpha=0.7, size=1.6, na.rm=TRUE) +
+      geom_point(data=subset(df, gene %in% lab_set),
+                 shape=21, stroke=0.7, size=2.8, color="black") +
+      geom_vline(xintercept=c(-thr_fc, thr_fc), linetype="dashed") +
+      geom_hline(yintercept=-log10(thr_p),       linetype="dashed") +
+      geom_text_repel(
+        data=subset(df, gene %in% lab_set),
+        aes(label=gene_symbol),
+        size=3, max.overlaps=40, box.padding=0.4, min.segment.length=0
+      ) +
+      scale_color_manual(values=c("Down"="#2C7BB6","NS"="grey60","Up"="#D7191C")) +
+      labs(x="Shrunken log2 fold change", y="-log10(FDR)",
+           title=paste0("Volcano: ", gsub("_"," ", tag)),
+           subtitle="Dashed: |log2FC|=1 and FDR=0.05") +
+      theme_classic() + theme(legend.position="top")
+  )
+  dev.off()
+  message("Saved: ", out)
+}
 
-  p <- ggplot(df, aes(log2FoldChange, -log10(padj), color=group)) +
-    geom_point(alpha=0.6) +
-    geom_vline(xintercept=c(-1,1), linetype="dashed") +
-    geom_hline(yintercept=-log10(0.05), linetype="dashed") +
-    scale_color_manual(values = c(
-      "Up" = "red",
-      "Down" = "blue",
-      "NA" = "grey"
-    ))
-    theme_classic() +
-    labs(title=nm)
+## Call once per contrast — pull from res_list
+save_volcano(res_list[["MG_vs_E"]]$res,  res_list[["MG_vs_E"]]$res_shr,  "MG_vs_EARTH")
+save_volcano(res_list[["G1_vs_E"]]$res,  res_list[["G1_vs_E"]]$res_shr,  "1G_vs_EARTH")
+save_volcano(res_list[["MG_vs_1G"]]$res, res_list[["MG_vs_1G"]]$res_shr, "MG_vs_1G")
 
-  ggsave(file.path(OUT_DIR,"figs",paste0("volcano_",nm,".png")), p)
+## helper — replaces the missing get_res()
+get_res <- function(a, b) {
+  results(dds, contrast=c("condition_group", a, b))
+}
 
-  top <- rownames(df[order(df$padj),])[1:40]
-  mat <- assay(vsd)[top, ]
-  mat <- t(scale(t(mat)))
+## 6b. HEATMAP (was broken due to scoping)
+for (nm in names(contrasts)) {
+  res  <- get_res(contrasts[[nm]][1], contrasts[[nm]][2])
+  df   <- as.data.frame(res)
+  top  <- rownames(df[order(df$padj, na.last=TRUE), ])[1:40]
+  mat  <- assay(vsd)[top, ]
+  mat  <- t(scale(t(mat)))
   mat[is.na(mat)] <- 0
-
-  ann <- meta[colnames(mat), c("condition_group","sex")]
-
+  ann  <- meta[colnames(mat), c("condition_group","sex")]
   png(file.path(OUT_DIR,"figs",paste0("heatmap_",nm,".png")), width=1000, height=800)
   pheatmap(mat, annotation_col=ann, show_rownames=FALSE, main=nm)
   dev.off()
+  message("Heatmap saved: ", nm)
 }
 
 ## 7. GO ENRICHMENT (ORA)
-
 for (nm in names(contrasts)) {
-
   res <- get_res(contrasts[[nm]][1], contrasts[[nm]][2])
-
-  sig <- rownames(res)[which(res$padj < 0.05 & abs(res$log2FoldChange) > 1)]
-
-  if (length(sig) < 10) next
-
+  sig <- rownames(res)[which(!is.na(res$padj) & res$padj < 0.05 & abs(res$log2FoldChange) > 1)]
+  if (length(sig) < 10) { message("Skipping GO ORA for ", nm, " — too few sig genes"); next }
   ego <- enrichGO(
-    gene=sig,
-    OrgDb=org.Dm.eg.db,
-    keyType="FLYBASE",
-    ont="BP",
-    pAdjustMethod="BH"
+    gene          = sig,
+    OrgDb         = org.Dm.eg.db,
+    keyType       = "FLYBASE",
+    ont           = "BP",
+    pAdjustMethod = "BH"
   )
-
   fwrite(as.data.table(ego),
          file.path(OUT_DIR,"tables",paste0("GO_",nm,".csv")))
+  message("GO ORA saved: ", nm)
 }
 
-## 8. GSEA
+## 8. GSEA (uses res_list so no get_res needed here)
 
-make_ranks <- function(res) {
-  r <- res$log2FoldChange
-  names(r) <- rownames(res)
-  r <- r[is.finite(r)]
-  sort(r, decreasing=TRUE)
+build_go_bp <- function(ranks) {
+  genes <- names(ranks)
+  m <- AnnotationDbi::select(
+    org.Dm.eg.db,
+    keys    = genes,
+    keytype = "FLYBASE",
+    columns = c("GOALL","ONTOLOGYALL")
+  )
+  m <- m[m$ONTOLOGYALL=="BP", ]
+  m <- m[!is.na(m$GOALL), ]
+  if (nrow(m)==0) return(NULL)
+  paths <- split(m$FLYBASE, m$GOALL)
+  paths <- lapply(paths, unique)
+  lens  <- lengths(paths)
+  paths[lens >= 10 & lens <= 500]
 }
 
 get_go_terms <- function(go_ids) {
   if (!length(go_ids)) return(character(0))
-
-  tbl <- AnnotationDbi::select(
-    GO.db,
-    keys=go_ids,
-    keytype="GOID",
-    columns="TERM"
-  )
-
+  tbl <- AnnotationDbi::select(GO.db, keys=go_ids, keytype="GOID", columns="TERM")
   tbl <- unique(tbl)
   setNames(tbl$TERM, tbl$GOID)
 }
 
-build_go_bp <- function(ranks) {
-
-  genes <- names(ranks)
-
-  m <- AnnotationDbi::select(
-    org.Dm.eg.db,
-    keys=genes,
-    keytype="FLYBASE",
-    columns=c("GOALL","ONTOLOGYALL")
-  )
-
-  m <- m[m$ONTOLOGYALL=="BP", ]
-  m <- m[!is.na(m$GOALL), ]
-
-  if (nrow(m)==0) return(NULL)
-
-  paths <- split(m$FLYBASE, m$GOALL)
-  paths <- lapply(paths, unique)
-
-  lens <- lengths(paths)
-  paths[lens >= 10 & lens <= 500]
-}
-
 plot_fgsea_bar <- function(fg_dt, tag) {
-
   if (nrow(fg_dt)==0) return()
-
-  fg_dt <- fg_dt[order(padj)][1:min(15,nrow(fg_dt))]
-
+  fg_dt    <- fg_dt[order(padj)][1:min(15,nrow(fg_dt))]
   term_map <- get_go_terms(fg_dt$pathway)
-
-  fg_dt$term <- term_map[fg_dt$pathway]
+  fg_dt$term  <- term_map[fg_dt$pathway]
   fg_dt$term[is.na(fg_dt$term)] <- fg_dt$pathway
-
   fg_dt$label <- stringr::str_wrap(fg_dt$term, 40)
-
   p <- ggplot(fg_dt, aes(reorder(label,NES), NES, fill=-log10(padj))) +
-    geom_col() +
-    coord_flip() +
-    theme_minimal() +
-    labs(title=paste("GSEA:",tag))
-
-  ggsave(file.path(GSEA_DIR,"figs",paste0("fgsea_",tag,".png")),
-         p,width=10,height=6)
+    geom_col() + coord_flip() + theme_minimal() +
+    labs(title=paste("GSEA:", tag))
+  ggsave(file.path(GSEA_DIR,"figs",paste0("fgsea_",tag,".png")), p, width=10, height=6)
 }
 
-plot_enrichment <- function(pathways,ranks,fg_dt,tag){
-
+plot_enrichment <- function(pathways, ranks, fg_dt, tag) {
   if (nrow(fg_dt)==0) return()
-
-  top <- fg_dt[order(padj)][1:min(5,nrow(fg_dt))]
-
+  top      <- fg_dt[order(padj)][1:min(5,nrow(fg_dt))]
   term_map <- get_go_terms(top$pathway)
-
-  for(i in seq_len(nrow(top))) {
-
-    pw <- top$pathway[i]
+  for (i in seq_len(nrow(top))) {
+    pw    <- top$pathway[i]
     label <- term_map[pw]
     if (is.na(label)) label <- pw
-
     p <- fgsea::plotEnrichment(pathways[[pw]], ranks) +
-      ggtitle(paste(tag,"|",label))
-
-    ggsave(file.path(GSEA_DIR,"figs",
-                     paste0("enrichment_",tag,"_",i,".png")),
-           p,width=8,height=6)
+      ggtitle(paste(tag, "|", label))
+    ggsave(file.path(GSEA_DIR,"figs",paste0("enrichment_",tag,"_",i,".png")), p, width=8, height=6)
   }
 }
 
 for (nm in names(contrasts)) {
-
   message("\n[GSEA] ", nm)
-
-  res <- get_res(contrasts[[nm]][1], contrasts[[nm]][2])
-
-  ranks <- make_ranks(res)
+  res    <- as.data.frame(res_list[[nm]]$res)
+  ranks  <- res$log2FoldChange
+  names(ranks) <- rownames(res)
+  ranks  <- sort(ranks[is.finite(ranks)], decreasing=TRUE)
 
   pathways <- build_go_bp(ranks)
+  if (is.null(pathways)) { message("No pathways: ", nm); next }
 
-  if (is.null(pathways)) {
-    message("No pathways: ", nm)
-    next
-  }
-
-  fg <- fgseaMultilevel(pathways, ranks)
+  fg    <- fgseaMultilevel(pathways, ranks)
   fg_dt <- as.data.table(fg)
 
-  fwrite(fg_dt,
-         file.path(GSEA_DIR,"tables",paste0("fgsea_",nm,".csv")))
-
+  fwrite(fg_dt, file.path(GSEA_DIR,"tables",paste0("fgsea_",nm,".csv")))
   plot_fgsea_bar(fg_dt, nm)
   plot_enrichment(pathways, ranks, fg_dt, nm)
-
   message("DONE GSEA: ", nm)
 }
-
-cat("\nPIPELINE COMPLETE → ", OUT_DIR, "\n")
