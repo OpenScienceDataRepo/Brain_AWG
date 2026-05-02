@@ -188,27 +188,12 @@ save_volcano(res_list[["MG_vs_E"]]$res,  res_list[["MG_vs_E"]]$res_shr,  "MG_vs_
 save_volcano(res_list[["G1_vs_E"]]$res,  res_list[["G1_vs_E"]]$res_shr,  "1G_vs_EARTH")
 save_volcano(res_list[["MG_vs_1G"]]$res, res_list[["MG_vs_1G"]]$res_shr, "MG_vs_1G")
 
-## helper — replaces the missing get_res()
+
 get_res <- function(a, b) {
   results(dds, contrast=c("condition_group", a, b))
 }
 
-## 6b. HEATMAP (was broken due to scoping)
-for (nm in names(contrasts)) {
-  res  <- get_res(contrasts[[nm]][1], contrasts[[nm]][2])
-  df   <- as.data.frame(res)
-  top  <- rownames(df[order(df$padj, na.last=TRUE), ])[1:40]
-  mat  <- assay(vsd)[top, ]
-  mat  <- t(scale(t(mat)))
-  mat[is.na(mat)] <- 0
-  ann  <- meta[colnames(mat), c("condition_group","sex")]
-  png(file.path(OUT_DIR,"figs",paste0("heatmap_",nm,".png")), width=1000, height=800)
-  pheatmap(mat, annotation_col=ann, show_rownames=FALSE, main=nm)
-  dev.off()
-  message("Heatmap saved: ", nm)
-}
-
-## 7. GO ENRICHMENT (ORA)
+## 7. GO ORA
 for (nm in names(contrasts)) {
   res <- get_res(contrasts[[nm]][1], contrasts[[nm]][2])
   sig <- rownames(res)[which(!is.na(res$padj) & res$padj < 0.05 & abs(res$log2FoldChange) > 1)]
@@ -225,7 +210,100 @@ for (nm in names(contrasts)) {
   message("GO ORA saved: ", nm)
 }
 
-## 8. GSEA (uses res_list so no get_res needed here)
+## mito heatmaps
+mito_fbgn_curated <- AnnotationDbi::select(
+  org.Dm.eg.db,
+  keys    = "GO:0005739",          # mitochondrion (CC)
+  keytype = "GOALL",
+  columns = "FLYBASE"
+)$FLYBASE
+mito_fbgn_curated <- unique(mito_fbgn_curated[!is.na(mito_fbgn_curated)])
+message("Curated mito genes: ", length(mito_fbgn_curated))
+
+## 8. HEATMAPS
+
+save_mito_heatmap <- function(tag, res_unshr, groups, mito_fbgn, max_rows=50, cap_z=2.5) {
+  if (!exists("vsd") || !exists("meta")) { message("No vsd/meta; skipping heatmap for ", tag); return(invisible(NULL)) }
+  mat <- assay(vsd)
+
+  cols_use <- rownames(meta)[meta$condition_group %in% groups]
+  if (!length(cols_use)) { message("No columns match groups for ", tag); return(invisible(NULL)) }
+
+  ann <- meta[cols_use, c("condition_group","sex","replicate"), drop=FALSE]
+
+  cond_levels <- c("EARTH","SPACEFLIGHT_1G","SPACEFLIGHT_MICROGRAVITY")
+  ord <- order(
+    factor(ann$condition_group, levels=cond_levels[cond_levels %in% groups]),
+    ann$sex,
+    ann$replicate
+  )
+  ann <- ann[ord, , drop=FALSE]
+  cols_use <- rownames(ann)
+
+  cond_short <- c(
+    EARTH                    = "Earth",
+    SPACEFLIGHT_1G           = "SF1g",
+    SPACEFLIGHT_MICROGRAVITY = "SFug"
+  )
+  sex_short <- c(FEMALE="F", MALE="M")
+
+  lab_col <- paste0(
+    cond_short[as.character(ann$condition_group)], "_",
+    sex_short[as.character(ann$sex)],
+    ann$replicate
+  )
+
+  rdf <- as.data.frame(res_unshr); rdf$gene_id <- rownames(rdf)
+  genes_in <- intersect(mito_fbgn, rownames(mat))
+  if (!length(genes_in)) { message("Curated mito set has no overlap for ", tag); return(invisible(NULL)) }
+  genes_rankable <- intersect(genes_in, rownames(rdf))
+  ord_idx <- order(rdf[genes_rankable, "padj"], -abs(rdf[genes_rankable, "log2FoldChange"]))
+  genes_plot <- genes_rankable[ord_idx][seq_len(min(length(genes_rankable), max_rows))]
+
+  z <- t(scale(t(mat[genes_plot, cols_use, drop=FALSE])))
+  z[is.na(z)] <- 0
+  z[z >  cap_z] <-  cap_z
+  z[z < -cap_z] <- -cap_z
+  rownames(z)   <- toSym(rownames(z))
+  colnames(z)   <- lab_col
+  rownames(ann) <- lab_col
+  ann$replicate <- NULL
+
+  out <- file.path(OUT_DIR,"figs", paste0("heatmap_mito_", tag, ".png"))
+  png(out, width=2200, height=1500, res=200, bg="white")
+  pheatmap::pheatmap(z,
+    scale="none",
+    cluster_rows=TRUE,
+    cluster_cols=FALSE,
+    annotation_col = ann[, c("condition_group","sex"), drop=FALSE],
+    show_rownames=TRUE, show_colnames=TRUE,
+    fontsize_row=8, fontsize_col=9,
+    border_color=NA,
+    main=paste0("Curated mitochondrial genes (", gsub("_"," ", tag), "); row-Z cap ±", cap_z,
+                " (", nrow(z), " genes)")
+  )
+  dev.off()
+  message("Saved: ", out)
+}
+
+save_mito_heatmap("MG_vs_EARTH",
+  res_unshr = res_list[["MG_vs_E"]]$res,
+  groups    = c("SPACEFLIGHT_MICROGRAVITY","EARTH"),
+  mito_fbgn = mito_fbgn_curated, max_rows=50, cap_z=2.5)
+
+save_mito_heatmap("1G_vs_EARTH",
+  res_unshr = res_list[["G1_vs_E"]]$res,
+  groups    = c("SPACEFLIGHT_1G","EARTH"),
+  mito_fbgn = mito_fbgn_curated, max_rows=50, cap_z=2.5)
+
+save_mito_heatmap("MG_vs_1G",
+  res_unshr = res_list[["MG_vs_1G"]]$res,
+  groups    = c("SPACEFLIGHT_MICROGRAVITY","SPACEFLIGHT_1G"),
+  mito_fbgn = mito_fbgn_curated, max_rows=50, cap_z=2.5)
+
+message("Saved focused PNGs to: ", file.path(OUT_DIR, "figs"))
+
+## 9. GSEA (uses res_list so no get_res needed here)
 
 build_go_bp <- function(ranks) {
   genes <- names(ranks)
