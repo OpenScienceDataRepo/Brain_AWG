@@ -1,0 +1,134 @@
+{
+  "myelination": {
+    "genes_found": [
+      "MBP",
+      "MOG",
+      "PLP1",
+      "MAG",
+      "CNP",
+      "MOBP",
+      "ERMN"
+    ],
+    "genes_missing": [],
+    "n_found": 7,
+    "logfc_values": [
+      0.530851178,
+      0.29356262,
+      0.064447853,
+      0.545433055,
+      0.617997216,
+      0.789970945,
+      -0.17521695
+    ],
+    "mean_logfc": 0.3810065595714286,
+    "std_logfc": 0.3139941700387457,
+    "t_stat": 2.972257922776592,
+    "p_value": 0.02488467442658943,
+    "p_permutation": 0.0001,
+    "sd_above_null": 3.894166077521169
+  },
+  "fast_signalling": {
+    "genes_found": [
+      "SCN1A",
+      "KCNQ2",
+      "ANK3",
+      "NEFH",
+      "NEFM",
+      "NEFL"
+    ],
+    "genes_missing": [
+      "SNCG"
+    ],
+    "n_found": 6,
+    "logfc_values": [
+      0.450857653,
+      -0.164744128,
+      0.074166252,
+      0.328146866,
+      -0.459820515,
+      -0.230702192
+    ],
+    "mean_logfc": -0.0003493439999999968,
+    "std_logfc": 0.3183949132606619,
+    "t_stat": -0.002453421518365044,
+    "p_value": 0.9981373317997311,
+    "p_permutation": 0.3595,
+    "sd_above_null": -0.3545598740105305
+  },
+  "social_circuit": {
+    "genes_found": [
+      "OXTR",
+      "HTR2A",
+      "DRD1",
+      "CHRM1",
+      "GABRB2"
+    ],
+    "genes_missing": [
+      "AVPR1A"
+    ],
+    "n_found": 5,
+    "logfc_values": [
+      0.033885746,
+      0.416851694,
+      0.357830541,
+      0.100988027,
+      0.223512937
+    ],
+    "mean_logfc": 0.226613789,
+    "std_logfc": 0.14583815853475038,
+    "t_stat": 3.107743422939647,
+    "p_value": 0.035950350100889976,
+    "p_permutation": 0.0334,
+    "sd_above_null": 1.8479313660225638
+  },
+  "layer5_proj": {
+    "genes_found": [
+      "FEZF2",
+      "BCL11B",
+      "TBR1",
+      "SATB2",
+      "CUX1"
+    ],
+    "genes_missing": [],
+    "n_found": 5,
+    "logfc_values": [
+      -0.048250436,
+      -0.136991242,
+      -0.078499139,
+      -0.176397533,
+      0.081947787
+    ],
+    "mean_logfc": -0.0716381126,
+    "std_logfc": 0.08880118618674646,
+    "t_stat": -1.6134494521131062,
+    "p_value": 0.18194447160299962,
+    "p_permutation": 0.1517,
+    "sd_above_null": -1.0196412806599229
+  },
+  "metabolic": {
+    "genes_found": [
+      "VDAC1",
+      "ATP2B2",
+      "SLC17A7",
+      "SNAP25",
+      "SYP",
+      "NRXN1"
+    ],
+    "genes_missing": [],
+    "n_found": 6,
+    "logfc_values": [
+      0.379402382,
+      -0.118765564,
+      0.157080065,
+      0.422301838,
+      0.379810706,
+      0.043905245
+    ],
+    "mean_logfc": 0.21062244533333332,
+    "std_logfc": 0.20044840230495933,
+    "t_stat": 2.3495627799319925,
+    "p_value": 0.06559577036211722,
+    "p_permutation": 0.0292,
+    "sd_above_null": 1.8719484791639074
+  }
+}

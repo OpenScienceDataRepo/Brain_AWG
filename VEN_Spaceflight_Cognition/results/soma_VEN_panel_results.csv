@@ -1,0 +1,9 @@
+Gene,Category,Dataset,CellType,Comparison,log2FC,pvalue,qvalue,Note
+MBP,Myelination,I4 PBMC,PBMC,FP2: post vs pre-flight,0.602,0.0,0.0,I4 3-day mission; p machine-zero
+MOG,Myelination,Twin,CPT,In-flight 2nd Half vs Ground,5.821,4.59e-27,3.04e-24,Year-long ISS; year-long CPT blood
+NEFL,FastSignalling,Twin,CPT,In-flight 2nd Half vs Ground,3.133,6.42e-05,0.000399,Neurofilament-L in blood
+NEFM,FastSignalling,Twin,CPT,In-flight 2nd Half vs Ground,1.033,0.0427,0.0819,Trend; q<0.10
+NEFH,FastSignalling,I4 cfRNA,cfRNA,Post-flight vs Pre-flight,0.998,0.0361,0.136,I4 cell-free RNA; q trend
+VDAC1,MetabolicSupport,Twin,CPT,In-flight 2nd Half vs Ground,-0.583,0.000132,0.000735,Downregulated; mitochondrial
+SYP,MetabolicSupport,Twin,CPT,In-flight 1st Half vs Ground,0.732,0.00129,0.0194,Synaptophysin upregulated
+SNAP25,MetabolicSupport,Twin,CPT,In-flight 2nd Half vs Ground,3.331,0.00757,0.0211,Synaptic protein upregulated

@@ -1,0 +1,48 @@
+# Large raw data files (not tracked -- obtain from NCBI GEO / NASA OSDR)
+GSE259421_all_counts.txt
+data/raw/GLDS-202_rna_seq_differential_expression_GLbulkRNAseq.csv
+
+# Proteomics raw data (obtain from PRIDE PXD069807)
+*.sepr2
+ISS_WT83_proteins.txt
+Ground_WT83_proteins.txt
+
+# PDF output files (regenerate from source)
+figures/*.pdf
+*.pdf
+
+# Results images from exploratory analysis (not paper figures)
+results/*.png
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# LaTeX build artefacts
+*.aux
+*.log
+*.bbl
+*.blg
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.toc
+*.nav
+*.snm
+
+# Office temp files
+~$*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+*.swp
+*.swo
+.vscode/
+.idea/

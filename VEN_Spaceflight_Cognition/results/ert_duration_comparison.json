@@ -1,0 +1,15 @@
+{
+  "twins_340day_N1": {
+    "early_inflight": 0.9,
+    "late_inflight": -0.9,
+    "early_to_late_change": -1.8,
+    "note": "N=1 spaceflight subject, hypothesis-generating"
+  },
+  "dev2024_6month_N24": {
+    "early_inflight": 0.027391696750902753,
+    "late_inflight": 0.13337093862815913,
+    "early_to_late_change": 0.10597924187725638,
+    "note": "N=24 astronauts, independent replication cohort"
+  },
+  "duration_effect_SD": -1.9059792418772563
+}
