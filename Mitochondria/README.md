@@ -1,4 +1,4 @@
-# Mitochondria Subgroup 
+# Mitochondria Subgroup
 
 Stressors present in spaceflight such as microgravity and cosmic radiation have been shown to drive immune dysregulation, musculoskeletal atrophy, and increased cancer risk. Spaceflight-induced mitochondrial dysfunction also plays an established role in Alzheimer’s disease (AD) pathology. A multi-omics approach integrating RNA-seq, proteomics, and GSEA was used to assess concordance in mitochondrial pathway enrichment across three Drosophila datasets: spaceflight-exposed flies (OSD-514), a Tau-driven neurodegeneration model (EmoryTau), and a gamma radiation dataset included as a specificity control.
 
