@@ -1,0 +1,20 @@
+{
+  "H1_ISS_myelination_specific": true,
+  "H1_ground_myelination_specific": false,
+  "H1_myelination_logfc_ISS": 0.3810065595714286,
+  "H1_myelination_p_ttest_ISS": 0.02488467442658943,
+  "H1_myelination_p_perm_ISS": 0.0001,
+  "H1_myelination_sd_above_null_ISS": 3.894166077521169,
+  "H1_myelination_logfc_ground": -0.2540739061138907,
+  "H1_myelination_p_ttest_ground": 0.008103363668813954,
+  "H1_myelination_p_perm_ground": 0.1641,
+  "H1_myelination_sd_above_null_ground": -0.8778769971084943,
+  "H2_secondary_social_circuit_ISS": true,
+  "H2_ERT_speed_early_inf_340day": 0.9,
+  "H2_ERT_speed_late_inf_340day": -0.9,
+  "H2_ERT_speed_change_340day": -1.8,
+  "H2_ERT_speed_change_6month": 0.10597924187725638,
+  "H2_duration_effect_SD": -1.9059792418772563,
+  "N1_caveat": "340-day: N=1 astronaut, hypothesis-generating; replicated in N=24 (Dev 2024)",
+  "VEN_fatigue_hypothesis_supported": true
+}

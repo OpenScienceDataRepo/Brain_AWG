@@ -1,0 +1,6 @@
+Category,n_panel,n_present,mean_log2FC,t_stat,p_ttest,SD_above_null,perm_p,sig,genes_present
+Myelination,7,7,-0.4619,-1.693,0.1413,-2.095,0.0501,†,"MBP, MOG, PLP1, MAG, CNP, MOBP, ERMN"
+FastSignalling,7,7,0.2341,0.658,0.5351,1.127,0.1919,,"SCN1A, KCNQ2, ANK3, NEFH, NEFM, NEFL, SNCG"
+SocialCircuit,6,6,0.3923,0.606,0.5712,1.736,0.0767,†,"OXTR, AVPR1A, HTR2A, DRD1, CHRM1, GABRB2"
+LayerVProjection,5,5,1.4233,1.453,0.2199,5.717,0.0015,**,"FEZF2, BCL11B, TBR1, SATB2, CUX1"
+MetabolicSupport,6,6,0.9474,2.368,0.0641,4.136,0.0052,**,"VDAC1, ATP2B2, SLC17A7, SNAP25, SYP, NRXN1"
