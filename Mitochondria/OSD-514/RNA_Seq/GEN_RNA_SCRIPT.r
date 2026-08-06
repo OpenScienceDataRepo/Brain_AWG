@@ -567,34 +567,6 @@ out_MG_vs_E   <- load_de("MG_vs_EARTH")
 out_1G_vs_E   <- load_de("1G_vs_EARTH")
 out_MG_vs_1G  <- load_de("MG_vs_1G")
 
-# Try to get vsd/meta (for heatmaps). Prefer DESeq2 RDS; else rebuild from Step 2 CSVs.
-if (!exists("vsd") || !exists("meta")) {
-  f_dds <- file.path(OUT_DIR,"tables","dds_step3_DESeq2.rds")
-  if (file.exists(f_dds)) {
-    dds  <- readRDS(f_dds)
-    meta <- as.data.frame(colData(dds))
-    vsd  <- vst(dds, blind=TRUE)
-    message("Loaded vsd/meta from: ", f_dds)
-  } else {
-    f_counts <- file.path("Collapsed_Counts","tables","counts_DESeq_ready.csv")
-    f_meta   <- file.path("Collapsed_Counts","tables","metadata_from_filenames.csv")
-    if (file.exists(f_counts) && file.exists(f_meta)) {
-      message("Rebuilding vsd/meta from Step-2 CSVs.")
-      counts <- as.matrix(read.csv(f_counts, row.names=1, check.names=FALSE))
-      meta   <- read.csv(f_meta,   row.names=1, check.names=FALSE)
-      meta$condition_group <- factor(meta$condition_group,
-        levels=c("EARTH","SPACEFLIGHT_1G","SPACEFLIGHT_MICROGRAVITY"))
-      if (!is.factor(meta$sex)) meta$sex <- factor(meta$sex)
-      # simple design for VST; DE already done
-      dds <- DESeqDataSetFromMatrix(round(counts), colData=meta, design=~ sex + condition_group)
-      dds <- estimateSizeFactors(dds)
-      vsd <- vst(dds, blind=TRUE)
-    } else {
-      message("No vsd/meta available; heatmaps will be skipped (volcanoes still created).")
-    }
-  }
-}
-
 # FBgn → SYMBOL map (use union of DE IDs + vsd if present)
 fbgn_keys <- unique(c(
   rownames(out_MG_vs_E$res), rownames(out_1G_vs_E$res), rownames(out_MG_vs_1G$res),
