@@ -1,0 +1,21 @@
+{
+  "dataset": "GSE259421",
+  "paper": "Marotta et al. Stem Cells Transl Med 2024",
+  "analysis_date": "2026-05-05",
+  "n_genes_in_matrix": 60799,
+  "gene_mapping_source": "MyGene.info (mygene Python package, Xin et al. 2016)",
+  "normalisation": "CPM + log2(CPM+1)",
+  "permutation_n": 10000,
+  "random_seed": 42,
+  "VEN_panel_source": "Keskin 2026 Fast Lane Hypothesis + VEN Fatigue Hypothesis",
+  "sample_groups_analysed": {
+    "NoMicroglia": {
+      "LEO_n": 4,
+      "Ground_n": 5
+    },
+    "WithMicroglia": {
+      "LEO_n": 5,
+      "Ground_n": 5
+    }
+  }
+}

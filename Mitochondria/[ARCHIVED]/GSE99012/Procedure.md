@@ -56,7 +56,7 @@ To focus specifically on gene expression changes relative to baseline conditions
 2. eGRL_TREM2-R47H/TYROBP vs eGRL_Control
 3. eGRL_Aß42 vs eGRL_Control
 4. eGRL_Aß42/TREM2-WT/TYROBP vs eGRL_Control
-5.eGRL_Aß42/TREM2-R47H/TYROBP vs eGRL_Control
+5. eGRL_Aß42/TREM2-R47H/TYROBP vs eGRL_Control
 
 These contrasts were prioritized because they isolate the transcriptional effects of each genetic modification or pathological stimulus relative to the unaltered baseline, allowing clearer interpretation of up- or downregulated pathways under each condition.
 

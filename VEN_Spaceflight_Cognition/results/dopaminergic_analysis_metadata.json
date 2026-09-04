@@ -1,0 +1,9 @@
+{
+  "dataset": "GSE259421",
+  "organoid_type": "Dopaminergic (midbrain iPSC-derived)",
+  "subjects": "S3, S4",
+  "analysis_script": "ven_dopaminergic_analysis.py",
+  "permutation_n": 10000,
+  "random_seed": 42,
+  "purpose": "Cortex-specificity control -- do VEN panel signals arise in non-VEN-containing organoid type under same spaceflight conditions?"
+}

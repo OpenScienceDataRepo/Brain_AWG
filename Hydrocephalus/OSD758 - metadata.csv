@@ -1,0 +1,36 @@
+Source Name,Sample Name,Factor Value[Spaceflight],Term Source REF,Factor Value[Altered Gravity],Parameter Value[Body Weight at Launch],Parameter Value[Body Weight at Euthanasia],Unit,Term Accession Number,Parameter Value[Age at Euthanasia],Parameter Value[Euthanasia Date],Parameter Value[BSP Dissection Date]
+MHU-8_FLT02,MHU-8_RTN_FLT_FLT02,Space Flight,MESH,0.33G by centrifugation,26.1,27.59,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,15-Apr-2023,15-Apr-2023
+MHU-8_FLT06,MHU-8_RTN_FLT_FLT06,Space Flight,MESH,0.33G by centrifugation,26.2,24.45,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT10,MHU-8_RTN_FLT_FLT10,Space Flight,MESH,0.33G by centrifugation,26.8,28.02,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT14,MHU-8_RTN_FLT_FLT14,Space Flight,MESH,0.33G by centrifugation,24.9,24.95,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT18,MHU-8_RTN_FLT_FLT18,Space Flight,MESH,0.33G by centrifugation,26.8,26.41,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT22,MHU-8_RTN_FLT_FLT22,Space Flight,MESH,0.33G by centrifugation,25.9,25.45,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT03,MHU-8_RTN_FLT_FLT03,Space Flight,MESH,0.66G by centrifugation,26,24.35,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,15-Apr-2023,15-Apr-2023
+MHU-8_FLT07,MHU-8_RTN_FLT_FLT07,Space Flight,MESH,0.66G by centrifugation,26.5,26.07,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT11,MHU-8_RTN_FLT_FLT11,Space Flight,MESH,0.66G by centrifugation,26.4,24.33,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT15,MHU-8_RTN_FLT_FLT15,Space Flight,MESH,0.66G by centrifugation,27.2,24.49,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT19,MHU-8_RTN_FLT_FLT19,Space Flight,MESH,0.66G by centrifugation,27.8,26.55,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT23,MHU-8_RTN_FLT_FLT23,Space Flight,MESH,0.66G by centrifugation,25.6,24.55,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT04,MHU-8_RTN_FLT_FLT04,Space Flight,MESH,1G by centrifugation,27.6,26.88,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,15-Apr-2023,15-Apr-2023
+MHU-8_FLT08,MHU-8_RTN_FLT_FLT08,Space Flight,MESH,1G by centrifugation,26.6,25.05,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT12,MHU-8_RTN_FLT_FLT12,Space Flight,MESH,1G by centrifugation,26.9,25.94,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT16,MHU-8_RTN_FLT_FLT16,Space Flight,MESH,1G by centrifugation,27.7,26.37,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT20,MHU-8_RTN_FLT_FLT20,Space Flight,MESH,1G by centrifugation,26.4,24.53,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT24,MHU-8_RTN_FLT_FLT24,Space Flight,MESH,1G by centrifugation,27,27.03,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_HGC01,MHU-8_RTN_HGC_HGC01,Ground Control,OSD,1G on Earth,27,27.5,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_HGC02,MHU-8_RTN_HGC_HGC02,Ground Control,OSD,1G on Earth,26.5,26.55,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_HGC03,MHU-8_RTN_HGC_HGC03,Ground Control,OSD,1G on Earth,28,28.44,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_HGC04,MHU-8_RTN_HGC_HGC04,Ground Control,OSD,1G on Earth,27,27.57,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_HGC05,MHU-8_RTN_HGC_HGC05,Ground Control,OSD,1G on Earth,26.3,26.46,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_HGC06,MHU-8_RTN_HGC_HGC06,Ground Control,OSD,1G on Earth,26.8,27.64,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_HGC07,MHU-8_RTN_HGC_HGC07,Ground Control,OSD,1G on Earth,27.8,28.31,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_HGC08,MHU-8_RTN_HGC_HGC08,Ground Control,OSD,1G on Earth,28,28,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_HGC09,MHU-8_RTN_HGC_HGC09,Ground Control,OSD,1G on Earth,25.8,26.36,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_HGC10,MHU-8_RTN_HGC_HGC10,Ground Control,OSD,1G on Earth,25.9,26.05,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_HGC11,MHU-8_RTN_HGC_HGC11,Ground Control,OSD,1G on Earth,26.6,26.71,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_HGC12,MHU-8_RTN_HGC_HGC12,Ground Control,OSD,1G on Earth,27.3,26.6,gram,http://purl.obolibrary.org/obo/UO_0000027,16 - 17,19-Apr-2023,19-Apr-2023
+MHU-8_FLT05,MHU-8_RTN_FLT_FLT05,Space Flight,MESH,uG,27.3,28.15,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT09,MHU-8_RTN_FLT_FLT09,Space Flight,MESH,uG,26.4,28.2,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT13,MHU-8_RTN_FLT_FLT13,Space Flight,MESH,uG,27.5,29.17,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT17,MHU-8_RTN_FLT_FLT17,Space Flight,MESH,uG,25.6,26.57,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023
+MHU-8_FLT21,MHU-8_RTN_FLT_FLT21,Space Flight,MESH,uG,27.2,27.33,gram,http://purl.obolibrary.org/obo/UO_0000027,15 - 16,16-Apr-2023,16-Apr-2023

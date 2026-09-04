@@ -1,83 +1,8 @@
-# Extract Raw Counts
+# Set working directory to the folder containing the raw counts files (the 24 *.genes.results files from OSDR)
+setwd("Your_Working_Directory/RawCounts")
 
-OSD-514 did not have a clean raw counts file to run in DESeq2. It had an "unnormalized counts" file but that had non-integer values, meaning it was a convenience matrix of RSEM “expected counts” (decimals).
-
-The 24 files compiled are also not raw counts files. The *.genes.results files from RSEM contain expected counts (fractional). We used them because DESeq2 supports this workflow via tximport. We gave DESeq2 the expected counts plus the average transcript lengths that tximport extracts. DESeq2 then uses these as offsets (length-aware normalization).
-
-Just rounding the “Unnormalized Counts” CSV throws away the information RSEM provides. It biases low counts, meaning small fractional differences can flip to 0 or 1 after rounding, distorting dispersion and p-values. It also breaks length-aware normalization since tximport+DESeq2 can properly correct for gene length and library size.
-
-Because of this, the 24 raw count results were downloaded for each sample in each condition and collapsed into one matrix manually using the below code.
-
-```
-# Set Working Directory first
-
-# Set the output folder
-out_dir <- "Collapsed_Counts"
-dir.create(file.path(out_dir, "tables"), recursive = TRUE, showWarnings = FALSE)
-
-# Find the 24 gene files
-files <- list.files("RawCounts", pattern="\\.genes\\.results$", full.names=TRUE)
-stopifnot(length(files) == 24)
-
-# Helper to read one file -> named numeric vector of expected_count
-read_one <- function(f) {
-  d <- read.delim(f, stringsAsFactors = FALSE, check.names = FALSE)
-  # RSEM gene files have 'gene_id' and 'expected_count' columns
-  if (!all(c("gene_id","expected_count") %in% colnames(d))) {
-    stop("File lacks required columns: ", basename(f))
-  }
-  v <- as.numeric(d$expected_count)
-  names(v) <- d$gene_id
-  v
-}
-
-# Read all samples
-lst <- lapply(files, read_one)
-
-# Make matrix (fill missing with 0)
-all_genes <- Reduce(union, lapply(lst, names))
-mat <- sapply(lst, function(v) { x <- v[all_genes]; x[is.na(x)] <- 0; x })
-rownames(mat) <- all_genes
-
-# Nice column names from filenames
-samp <- sub("\\.genes\\.results$", "", basename(files))
-colnames(mat) <- samp
-
-# Write the decimal "expected counts" matrix (for record/tximport)
-write.csv(mat,
-          file.path(out_dir, "tables", "OSD514_RSEM_expected_counts.csv"),
-          quote = FALSE)
-
-# Also write a rounded integer matrix that DESeq2 will accept directly
-mat_int <- round(mat)
-storage.mode(mat_int) <- "integer"
-write.csv(mat_int,
-          file.path(out_dir, "tables", "counts_DESeq_ready.csv"),
-          quote = FALSE)
-
-# Make a tiny metadata from filenames (condition_group, sex)
-grp_tok <- sub("^GLDS-514_rna-seq_([^_]+)_.*$", "\\1", samp)       # Earth / SF1g / SFug
-sex_tok <- sub("^GLDS-514_rna-seq_[^_]+_([MF])\\d+_.*$", "\\1", samp) # M/F
-cond_map <- c(Earth="EARTH", SF1g="SPACEFLIGHT_1G", SFug="SPACEFLIGHT_MICROGRAVITY")
-meta <- data.frame(
-  sample = samp,
-  condition_group = factor(cond_map[grp_tok],
-                           levels = c("EARTH","SPACEFLIGHT_1G","SPACEFLIGHT_MICROGRAVITY")),
-  sex = factor(ifelse(sex_tok=="F","FEMALE","MALE"))
-)
-rownames(meta) <- meta$sample
-write.csv(meta, file.path(out_dir, "tables", "metadata_from_filenames.csv"),
-          row.names = TRUE, quote = FALSE)
-
-cat("Wrote:\n",
-    "- tables/OSD514_RSEM_expected_counts.csv\n",
-    "- tables/counts_DESeq_ready.csv (rounded; plug into DESeq2)\n",
-    "- tables/metadata_from_filenames.csv (optional)\n", sep = "")
-```
-
-# Quality Control
-```
-# 1) Load packages
+# 01. QC STEP
+# Load packages
 suppressPackageStartupMessages({
   library(tximport)
   library(DESeq2)
@@ -88,21 +13,25 @@ suppressPackageStartupMessages({
   library(stringr)
 })
 
-# 2) Output dirs
-OUT_DIR <- "RESULTS_OSD514"
+# Output dirs
+OUT_DIR <- "Your_Working_Directory/RESULTS_OSD514"
+dir.create(OUT_DIR, recursive = TRUE, showWarnings = FALSE)
 dir.create(file.path(OUT_DIR, "figs"),   recursive = TRUE, showWarnings = FALSE)
 dir.create(file.path(OUT_DIR, "tables"), recursive = TRUE, showWarnings = FALSE)
 
-# 3) Find the gene result files
-files <- list.files(path=".", pattern="\\.genes\\.results$", full.names=TRUE, recursive=TRUE)
+# Find the gene result files
+files <- list.files(
+  path = "Your_Working_Directory/RawCounts",
+  pattern = "\\.genes\\.results$",
+  full.names = TRUE,
+  recursive = TRUE
+)
 if (length(files) == 0) {
   stop("No *.genes.results files found. Make sure you've downloaded the 24 '...genes.results' files from OSDR.")
 }
 message("Found ", length(files), " *.genes.results files.")
-# If you want to enforce all 24 samples, uncomment:
-# if (length(files) != 24) stop("Expected 24 files; found ", length(files), ".")
 
-# 4) Parse tokens from filenames to build metadata
+# Parse tokens from filenames to build metadata
 b <- basename(files)
 # GLDS-514_rna-seq_<SFug|SF1g|Earth>_<M|F><rep>_..._(CRRA#######)-..._(HV... )_L<lane>.genes.results
 m <- stringr::str_match(b, "rna-seq_(SFug|SF1g|Earth)_([MF])(\\d).*_(CRRA\\d+)\\-[^_]+_(HV\\w+)_L(\\d)")
@@ -139,7 +68,7 @@ meta <- data.frame(
 )
 write.csv(meta, file.path(OUT_DIR,"tables","sample_table.csv"))
 
-# 5) Import RSEM with tximport
+# Import RSEM with tximport
 # Unscaled expected counts for a "library size" proxy (QC only)
 txi_raw <- tximport(files, type = "rsem", countsFromAbundance = "no")
 lib <- colSums(txi_raw$counts)
@@ -156,13 +85,13 @@ if (length(flag_low)) message("Flagged low-depth (~≥3x below median): ", paste
 # Gene-level expected counts for DESeq2 (no rounding)
 txi <- tximport(files, type = "rsem", countsFromAbundance = "no")
 
-# 6) Low-count filter (≥10 in ≥20% samples)
+# Low-count filter (≥10 in ≥20% samples)
 keep <- rowSums(txi$counts >= 10) >= ceiling(ncol(txi$counts) * 0.2)
 txi$counts    <- txi$counts[keep, , drop = FALSE]
 txi$abundance <- txi$abundance[keep, , drop = FALSE]
 txi$length    <- txi$length[keep, , drop = FALSE]
 
-## ---- PRINT "02_filtering_summary.csv" IN CONSOLE ----
+# PRINT "02_filtering_summary.csv" IN CONSOLE
 filtering_summary <- data.frame(
   kept_genes = nrow(txi$counts),
   rule       = ">=10 in >=20% samples",
@@ -171,7 +100,7 @@ filtering_summary <- data.frame(
 cat("\n===== 02_filtering_summary.csv (printed) =====\n")
 print(filtering_summary, row.names = FALSE)
 
-# 7) Build DESeq2 object + normalization
+# Build DESeq2 object + normalization
 design_formula <- if (any(is.na(meta$sex))) ~ condition_group else ~ sex + condition_group
 dds <- DESeqDataSetFromTximport(txi, colData = meta, design = design_formula)
 dds <- estimateSizeFactors(dds)
@@ -187,7 +116,7 @@ if (!is.null(sf) && length(sf) == ncol(dds)) {
   )
 }
 
-# 8) VST → PCA  (with 95% ellipses per condition)
+# VST → PCA  (with 95% ellipses per condition)
 vsd <- vst(dds, blind = TRUE)
 pca_df <- plotPCA(vsd, intgroup = c("condition_group","sex"), returnData = TRUE)
 percentVar <- round(100 * attr(pca_df, "percentVar"))
@@ -206,8 +135,8 @@ p_pca <- ggplot(pca_df, aes(PC1, PC2)) +
 
 ggsave(file.path(OUT_DIR,"figs","04_pca.png"), p_pca, width=7, height=6, dpi=300, bg="white")
 
-# 9) Sample-to-sample distance heatmap
-#    Order *explicitly* by condition first, then sex, then replicate (NO gaps)
+# Sample-to-sample distance heatmap
+#    Order explicitly by condition first, then sex, then replicate
 mat <- assay(vsd)
 
 # Short labels for columns
@@ -249,7 +178,7 @@ pheatmap(D,
 )
 dev.off()
 
-# 10) Optional: batch token & summary
+# batch token & summary
 meta$batch <- factor(paste(meta$flowcell, meta$lane, sep="_"))
 tab <- table(meta$condition_group, meta$batch)
 write.csv(as.data.frame(tab), file.path(OUT_DIR,"tables","06_condition_by_batch.csv"), row.names=FALSE)
@@ -260,7 +189,7 @@ final_design <- if (any(colSums(tab > 0) >= 2) && nlevels(meta$batch) > 1) {
   deparse(design_formula)
 }
 
-## ---- PRINT "00_step2_summary.txt" IN CONSOLE ----
+# PRINT "00_step2_summary.txt" IN CONSOLE
 summary_lines <- c(
   sprintf("Library size proxy (sum expected counts): %.2fM–%.2fM", min(lib)/1e6, max(lib)/1e6),
   sprintf("Kept genes: %d", nrow(txi$counts)),
@@ -271,11 +200,8 @@ cat("\n===== 00_step2_summary.txt (printed) =====\n",
     paste(summary_lines, collapse = "\n"),
     "\n", sep = "")
 
+# 02. DESeq2
 
-```
-
-# DESeq2
-```
 # Safety checks
 stopifnot(exists("txi"), exists("meta"), exists("OUT_DIR"))
 stopifnot(all(c("counts","abundance","length") %in% names(txi)))
@@ -291,7 +217,7 @@ if (!requireNamespace("apeglm", quietly = TRUE)) {
   BiocManager::install("apeglm", ask = FALSE, update = FALSE)
 }
 
-# 3.1 Design (reference + available covariates)
+# Design (reference + available covariates)
 # Use EARTH as the control/reference
 meta$condition_group <- stats::relevel(meta$condition_group, ref = "EARTH")
 if (!is.factor(meta$sex))   meta$sex   <- factor(meta$sex)
@@ -387,12 +313,12 @@ run_contrast <- function(var, levelA, levelB, tag) {
   invisible(list(res = res_df, res_shr = res_shr_df))
 }
 
-# 3.3 Run the contrasts you care about
+# Run the contrasts you care about
 out_MG_vs_E  <- run_contrast("condition_group", "SPACEFLIGHT_MICROGRAVITY", "EARTH",           "MG_vs_EARTH")
 out_1G_vs_E  <- run_contrast("condition_group", "SPACEFLIGHT_1G",           "EARTH",           "1G_vs_EARTH")
 out_MG_vs_1G <- run_contrast("condition_group", "SPACEFLIGHT_MICROGRAVITY", "SPACEFLIGHT_1G",  "MG_vs_1G")
 
-# 3.6 Quick overall counts
+# Quick overall counts
 cat("\n=== Overall DE summaries (padj < 0.05) ===\n")
 for (nm in c("MG_vs_EARTH","1G_vs_EARTH","MG_vs_1G")) {
   f <- file.path(OUT_DIR, "tables", paste0("DE_", nm, "_unshrunk.csv"))
@@ -406,7 +332,7 @@ for (nm in c("MG_vs_EARTH","1G_vs_EARTH","MG_vs_1G")) {
   cat(sprintf("%-12s  up: %5d   down: %5d   total: %5d\n", nm, up, down, up+down))
 }
 
-# 3.7 Tiny text summary
+# Tiny text summary
 writeLines(c(
   paste("Design:", deparse(design_formula)),
   sprintf("MG vs EARTH  : %d sig (padj<0.05)", 
@@ -416,9 +342,9 @@ writeLines(c(
   sprintf("MG vs 1G     : %d sig (padj<0.05)", 
           sum(!is.na(out_MG_vs_1G$res$padj) & out_MG_vs_1G$res$padj < 0.05))
 ), con = file.path(OUT_DIR, "tables", "DE_step3_summary.txt"))
-```
-# Visualization
-```
+
+# 03. Visualization
+
 # Load packages (install once if needed)
 if (!requireNamespace("ggrepel", quietly = TRUE)) install.packages("ggrepel")
 if (!requireNamespace("AnnotationDbi", quietly = TRUE)) {
@@ -589,12 +515,8 @@ save_heatmap("MG_vs_1G", out_MG_vs_1G$res,
              topN=40, cap_z=2.5)
 
 message("Saved PNGs to: ", file.path(OUT_DIR, "figs"))
-```
-# Mito-Specific Analysis (GO ORA)
 
-After analyzing and visualizing DESeq2 results, we decided to zero in on mitochondrially relevant genes and where they land on the spectrum of differentially expressed genes by performing GO Overrepresentation Analysis (ORA) on pathways of interest and related terms.
-
-```
+# 04. Mito-Specific GO ORA
 # Load Packages
 pkgs_cran <- c("ggplot2","ggrepel","pheatmap","dplyr")
 for (p in pkgs_cran) if (!requireNamespace(p, quietly=TRUE)) install.packages(p)
@@ -644,34 +566,6 @@ load_de <- function(tag) {
 out_MG_vs_E   <- load_de("MG_vs_EARTH")
 out_1G_vs_E   <- load_de("1G_vs_EARTH")
 out_MG_vs_1G  <- load_de("MG_vs_1G")
-
-# Try to get vsd/meta (for heatmaps). Prefer DESeq2 RDS; else rebuild from Step 2 CSVs.
-if (!exists("vsd") || !exists("meta")) {
-  f_dds <- file.path(OUT_DIR,"tables","dds_step3_DESeq2.rds")
-  if (file.exists(f_dds)) {
-    dds  <- readRDS(f_dds)
-    meta <- as.data.frame(colData(dds))
-    vsd  <- vst(dds, blind=TRUE)
-    message("Loaded vsd/meta from: ", f_dds)
-  } else {
-    f_counts <- file.path("Collapsed_Counts","tables","counts_DESeq_ready.csv")
-    f_meta   <- file.path("Collapsed_Counts","tables","metadata_from_filenames.csv")
-    if (file.exists(f_counts) && file.exists(f_meta)) {
-      message("Rebuilding vsd/meta from Step-2 CSVs.")
-      counts <- as.matrix(read.csv(f_counts, row.names=1, check.names=FALSE))
-      meta   <- read.csv(f_meta,   row.names=1, check.names=FALSE)
-      meta$condition_group <- factor(meta$condition_group,
-        levels=c("EARTH","SPACEFLIGHT_1G","SPACEFLIGHT_MICROGRAVITY"))
-      if (!is.factor(meta$sex)) meta$sex <- factor(meta$sex)
-      # simple design for VST; DE already done
-      dds <- DESeqDataSetFromMatrix(round(counts), colData=meta, design=~ sex + condition_group)
-      dds <- estimateSizeFactors(dds)
-      vsd <- vst(dds, blind=TRUE)
-    } else {
-      message("No vsd/meta available; heatmaps will be skipped (volcanoes still created).")
-    }
-  }
-}
 
 # FBgn → SYMBOL map (use union of DE IDs + vsd if present)
 fbgn_keys <- unique(c(
@@ -847,624 +741,347 @@ save_mito_heatmap("MG_vs_1G",
   max_rows  = 50, cap_z=2.5)
 
 message("Saved focused PNGs to: ", file.path(OUT_DIR, "figs"))
-```
-# GSEA (in R)
 
-```
+
+# 05. GSEA
 # Packages
-pkgs_cran <- c("data.table","ggplot2")
-for (p in pkgs_cran) if (!requireNamespace(p, quietly=TRUE)) install.packages(p)
 
-if (!requireNamespace("BiocManager", quietly=TRUE)) install.packages("BiocManager")
-pkgs_bioc <- c("fgsea","AnnotationDbi","org.Dm.eg.db","GO.db")
-for (p in pkgs_bioc) if (!requireNamespace(p, quietly=TRUE)) BiocManager::install(p, ask=FALSE, update=FALSE)
+pkgs_cran <- c(
+  "data.table","ggplot2","dplyr","ggrepel",
+  "enrichR","stringr","tidyr","igraph","ggraph"
+)
+
+pkgs_bioc <- c(
+  "fgsea","AnnotationDbi","org.Dm.eg.db","GO.db"
+)
+
+if (!requireNamespace("BiocManager", quietly=TRUE)) {
+  install.packages("BiocManager")
+}
+
+for (p in pkgs_cran) {
+  if (!requireNamespace(p, quietly=TRUE)) install.packages(p)
+}
+
+for (p in pkgs_bioc) {
+  if (!requireNamespace(p, quietly=TRUE)) {
+    BiocManager::install(p, ask=FALSE, update=FALSE)
+  }
+}
 
 suppressPackageStartupMessages({
-  library(data.table); library(ggplot2)
-  library(fgsea);      library(AnnotationDbi)
-  library(org.Dm.eg.db); library(GO.db)
+  library(data.table)
+  library(ggplot2)
+  library(dplyr)
+  library(fgsea)
+  library(AnnotationDbi)
+  library(org.Dm.eg.db)
+  library(GO.db)
+  library(enrichR)
+  library(stringr)
+  library(tidyr)
+  library(igraph)
+  library(ggraph)
 })
 
-# Output dirs
-GSEA_DIR <- "GSEA"
-dir.create(GSEA_DIR, recursive=TRUE, showWarnings=FALSE)
-dir.create(file.path(GSEA_DIR,"tables"), recursive=TRUE, showWarnings=FALSE)
-dir.create(file.path(GSEA_DIR,"figs"),   recursive=TRUE, showWarnings=FALSE)
+# PATHS
 
-OUT_DIR <- "RESULTS_OSD514"
-TBL_DIR <- file.path(OUT_DIR,"tables")
+BASE_DIR <- "/Volumes/Marians_SSD/ADBR_Mito/OSD-514/RNA_Seq"
 
-# Helpers
+GSEA_DIR <- file.path(BASE_DIR, "GSEA")
+TBL_DIR  <- file.path(BASE_DIR, "RESULTS_OSD514", "tables")
+
+dir.create(file.path(GSEA_DIR, "tables"), recursive=TRUE, showWarnings=FALSE)
+dir.create(file.path(GSEA_DIR, "figs"), recursive=TRUE, showWarnings=FALSE)
+
+# PARAMETERS
+
+PADJ_CUT <- 0.05
+LFC_CUT  <- 1
+
+CONTRASTS <- c("MG_vs_EARTH","1G_vs_EARTH","MG_vs_1G")
+
+# HELPERS
+
+`%||%` <- function(a,b) if (!is.null(a) && length(a)) a else b
+
+wrap_terms <- function(x,w=40) stringr::str_wrap(x,w)
+
+# LOAD DE
+
 load_de <- function(tag) {
   f <- file.path(TBL_DIR, paste0("DE_", tag, "_unshrunk.csv"))
-  if (!file.exists(f)) stop("Missing DE table: ", f)
-  df <- read.csv(f, check.names=FALSE)
-  if ("gene" %in% names(df)) rownames(df) <- df$gene
+  if (!file.exists(f)) stop("Missing DE file: ", f)
+
+  df <- read.csv(f, stringsAsFactors=FALSE, check.names=FALSE)
+
+  if (!"gene" %in% colnames(df)) stop("No gene column")
+
+  rownames(df) <- df$gene
   df
 }
 
-# Build ranks: prefer Wald stat; else signed -log10(p)
-build_ranks <- function(res_df) {
-  ids <- rownames(res_df)
-  if ("stat" %in% names(res_df) && any(is.finite(res_df$stat))) {
-    score <- res_df$stat
+# RANKS
+
+build_ranks <- function(res) {
+
+  ids <- rownames(res)
+
+  if ("stat" %in% names(res) && any(is.finite(res$stat))) {
+    score <- res$stat
   } else {
-    pv    <- if ("pvalue" %in% names(res_df)) res_df$pvalue else res_df$padj
-    pv[!is.finite(pv) | is.na(pv)] <- 1
-    lfc   <- if ("log2FoldChange" %in% names(res_df)) res_df$log2FoldChange else 0
-    score <- sign(lfc) * (-log10(pmax(pv, 1e-300)))
+    pv  <- res$pvalue %||% res$padj
+    lfc <- res$log2FoldChange %||% 0
+
+    pv[!is.finite(pv)]  <- 1
+    lfc[!is.finite(lfc)] <- 0
+
+    score <- sign(lfc) * (-log10(pmax(pv,1e-300)))
   }
-  keep <- is.finite(score) & !is.na(ids) & nzchar(ids)
-  ranks <- tapply(score[keep], ids[keep], mean)  # aggregate duplicates
+
+  keep <- is.finite(score) & nzchar(ids)
+  ranks <- tapply(score[keep], ids[keep], mean)
+
   sort(ranks, decreasing=TRUE)
 }
 
-# Build GO BP sets limited to the current ranked universe (robust)
-build_go_bp_sets <- function(ranks, min_size=10, max_size=500) {
+# GO BP SETS (RESTORED)
+
+build_go_bp_sets <- function(ranks) {
+
   genes <- names(ranks)
-  m <- AnnotationDbi::select(org.Dm.eg.db,
-                             keys=genes, keytype="FLYBASE",
-                             columns=c("GOALL","ONTOLOGYALL"))
-  m <- unique(as.data.frame(m, stringsAsFactors=FALSE))
-  m <- m[!is.na(m$GOALL) & !is.na(m$ONTOLOGYALL) & m$ONTOLOGYALL=="BP", , drop=FALSE]
-  pathways <- split(m$FLYBASE, m$GOALL, drop=TRUE)
-  pathways <- lapply(pathways, function(x) unique(x[!is.na(x) & nzchar(x)]))
-  lens <- vapply(pathways, length, integer(1))
-  pathways[lens >= min_size & lens <= max_size]
+
+  m <- AnnotationDbi::select(
+    org.Dm.eg.db,
+    keys=genes,
+    keytype="FLYBASE",
+    columns=c("GOALL","ONTOLOGYALL")
+  )
+
+  m <- m[m$ONTOLOGYALL=="BP", ]
+
+  if (nrow(m)==0) return(NULL)
+
+  paths <- split(m$FLYBASE, m$GOALL)
+  paths <- lapply(paths, function(x) unique(na.omit(x)))
+
+  lens <- lengths(paths)
+
+  paths[lens >= 10 & lens <= 500]
 }
 
-# Map GOID -> TERM
-term_map_for <- function(go_ids) {
-  if (!length(go_ids)) return(setNames(character(0), character(0)))
-  tbl <- AnnotationDbi::select(GO.db, keys=go_ids, keytype="GOID", columns="TERM")
-  tbl <- unique(as.data.frame(tbl, stringsAsFactors=FALSE))
+# GO TERM MAP
+
+get_go_terms <- function(ids) {
+
+  if (!length(ids)) return(setNames(character(0),character(0)))
+
+  tbl <- AnnotationDbi::select(
+    GO.db,
+    keys=ids,
+    keytype="GOID",
+    columns="TERM"
+  )
+
+  tbl <- unique(tbl)
   setNames(tbl$TERM, tbl$GOID)
 }
 
-# Null-coalesce
-`%||%` <- function(a,b) if (!is.null(a) && !is.na(a) && nzchar(a)) a else b
+# SIGNIFICANT GENES
 
-# Pick mito-relevant pathways; fallback to top hits if none
-pick_mito_paths <- function(fg_dt, padj_cut=0.25, top_n=8) {
-  if (!nrow(fg_dt)) return(character(0))
-  lab <- if ("term" %in% names(fg_dt)) fg_dt$term else fg_dt$pathway
-  mito_pat <- paste(
-    "mitochond", "oxidative phosph", "electron transport", "respiratory chain",
-    "ATP synthase", "tricarboxylic", "TCA", "beta-oxid", "mitophagy", "fission", "fusion",
-    sep="|"
+get_sig <- function(res) {
+
+  res <- res[
+    !is.na(res$padj) &
+    res$padj < PADJ_CUT &
+    !is.na(res$log2FoldChange) &
+    abs(res$log2FoldChange) >= LFC_CUT,
+  ]
+
+  unique(rownames(res))
+}
+
+# SYMBOL CONVERSION
+
+fbgn_to_symbol <- function(ids) {
+
+  ids <- unique(ids[!is.na(ids) & nzchar(ids)])
+  if (!length(ids)) return(character(0))
+
+  tbl <- AnnotationDbi::select(
+    org.Dm.eg.db,
+    keys=ids,
+    keytype="FLYBASE",
+    columns="SYMBOL"
   )
-  mito <- fg_dt[grepl(mito_pat, lab, ignore.case=TRUE) & is.finite(fg_dt$padj), , drop=FALSE]
-  mito <- mito[order(mito$padj, -abs(mito$NES)), , drop=FALSE]
-  sel <- mito$pathway[mito$padj <= padj_cut]
-  if (!length(sel)) sel <- head(mito$pathway, min(top_n, nrow(mito)))
-  unique(na.omit(sel))
+
+  tbl <- tbl[!duplicated(tbl$FLYBASE), ]
+
+  map <- setNames(tbl$SYMBOL, tbl$FLYBASE)
+
+  out <- map[ids]
+  out[is.na(out)] <- ids[is.na(out)]
+
+  unique(out)
 }
 
-# Save enrichment curve for one pathway
-save_enrichment_curve <- function(tag, pathway_id, ranks, pathways, TERM_MAP) {
-  if (!pathway_id %in% names(pathways)) return(invisible(NULL))
-  term_label <- TERM_MAP[[pathway_id]] %||% pathway_id
-  gp <- fgsea::plotEnrichment(pathways[[pathway_id]], ranks) +
-        ggplot2::ggtitle(paste0(term_label, " (", tag, ")"))
-  fn <- file.path(GSEA_DIR,"figs",
-                  paste0("fgsea_curve_",
-                         gsub("[^A-Za-z0-9]+","_", term_label), "_", tag, ".png"))
-  ggsave(fn, gp, width=7, height=5, dpi=300, bg="white")
-  message("Saved: ", fn)
+# FGSEA PLOT
+
+save_fgsea <- function(dt, tag) {
+
+  if (is.null(dt) || nrow(dt)==0) return()
+
+  dt <- dt[order(padj)][1:min(15,nrow(dt))]
+
+  term_map <- get_go_terms(dt$pathway)
+
+  dt$term <- term_map[dt$pathway]
+  dt$term[is.na(dt$term)] <- dt$pathway
+
+  dt$label <- wrap_terms(dt$term)
+
+  p <- ggplot(dt, aes(reorder(label, NES), NES, fill=-log10(padj))) +
+    geom_col() +
+    coord_flip() +
+    theme_minimal() +
+    labs(title=paste("GSEA:",tag))
+
+  ggsave(file.path(GSEA_DIR,"figs",paste0("fgsea_",tag,".png")),
+         p,width=10,height=6)
 }
 
-# Save compact GSEA table figure (strip with NES/FDR)
-save_gsea_table_plot <- function(tag, sel_paths, ranks, pathways, fg_dt, TERM_MAP) {
-  sel_paths <- intersect(sel_paths, names(pathways))
-  if (!length(sel_paths)) { message("No selected pathways to plot for ", tag); return(invisible(NULL)) }
-  fg_sel <- fg_dt[match(sel_paths, fg_dt$pathway), , drop=FALSE]
-  fn <- file.path(GSEA_DIR, "figs", paste0("fgsea_table_", tag, ".png"))
-  png(fn, width=1600, height=900, res=150, bg="white")
-  fgsea::plotGseaTable(pathways[sel_paths], ranks, fg_sel)
-  dev.off()
-  message("Saved: ", fn)
+save_enrichment_plots <- function(pathways, ranks, fg_dt, tag) {
+
+  if (is.null(fg_dt) || nrow(fg_dt) == 0) return()
+
+  # top pathways (by padj)
+  top <- fg_dt[order(padj)][1:min(5, nrow(fg_dt))]
+
+  term_map <- get_go_terms(top$pathway)
+
+  for (i in seq_len(nrow(top))) {
+
+    pw <- top$pathway[i]
+    term_name <- term_map[pw]
+    if (is.na(term_name)) term_name <- pw
+
+    p <- plotEnrichment(pathways[[pw]], ranks) +
+      labs(title = paste0(tag, " | ", term_name))
+
+    ggsave(
+      file.path(GSEA_DIR, "figs",
+        paste0("enrichment_", tag, "_", i, ".png")),
+      p,
+      width = 8,
+      height = 6
+    )
+  }
 }
 
-# Run everything for one contrast
-run_fgsea_and_plots <- function(tag, nperm=10000, padj_cut_table=0.25, topN_bar=15) {
-  message("\n=== ", tag, " ===")
-  res_df <- load_de(tag)
-  ranks  <- build_ranks(res_df)
-  if (length(ranks) < 50) stop("Too few ranked genes for ", tag)
+# ENRICHR
 
-  pathways <- build_go_bp_sets(ranks, min_size=10, max_size=500)
-  if (!length(pathways)) stop("No GO BP pathways built for ", tag)
-  TERM_MAP <- term_map_for(names(pathways))
+run_enrichr <- function(tag, genes) {
 
-  set.seed(42)
-  fg <- suppressWarnings(
-    fgsea(pathways=pathways, stats=ranks, minSize=10, maxSize=500, nperm=nperm)
+  if (!length(genes)) return(NULL)
+
+  setEnrichrSite("FlyEnrichr")
+
+  dbs <- grep("^GO_", listEnrichrDbs()$libraryName, value=TRUE)
+
+  enrich <- enrichr(genes, dbs)
+
+  for (d in names(enrich)) {
+    fwrite(as.data.table(enrich[[d]]),
+           file.path(GSEA_DIR,"tables",paste0(tag,"_",d,".csv")))
+  }
+
+  enrich
+}
+
+# NETWORK
+
+run_network <- function(enrich_bp, tag) {
+
+  if (is.null(enrich_bp) || nrow(enrich_bp)==0) return()
+
+  top <- enrich_bp %>%
+    arrange(Adjusted.P.value) %>%
+    head(12)
+
+  edge_list <- lapply(seq_len(nrow(top)), function(i) {
+
+    genes <- unlist(strsplit(top$Genes[i], ";"))
+
+    genes <- genes[genes != "" & !is.na(genes)]
+
+    if (!length(genes)) return(NULL)
+
+    data.frame(
+      from = rep(top$Term[i], length(genes)),
+      to   = genes,
+      stringsAsFactors=FALSE
+    )
+  })
+
+  edge_list <- edge_list[!sapply(edge_list,is.null)]
+  if (!length(edge_list)) return()
+
+  edges <- do.call(rbind, edge_list)
+
+  g <- graph_from_data_frame(edges)
+
+  p <- ggraph(g, layout="fr") +
+    geom_edge_link(alpha=0.3) +
+    geom_node_point(size=3) +
+    geom_node_text(aes(label=name), repel=TRUE, size=3) +
+    theme_void()
+
+  ggsave(file.path(GSEA_DIR,"figs",paste0("network_",tag,".png")),
+         p,width=10,height=8)
+}
+
+# MAIN
+
+run_analysis <- function(tag) {
+
+  message("\nRUNNING: ", tag)
+
+  res <- load_de(tag)
+  ranks <- build_ranks(res)
+
+  pathways <- build_go_bp_sets(ranks)
+
+  if (!is.null(pathways) && length(pathways)) {
+
+    fg <- fgseaMultilevel(pathways, ranks)
+    fg_dt <- as.data.table(fg)
+
+    if (nrow(fg_dt) > 0) {
+
+  fwrite(fg_dt,
+    file.path(GSEA_DIR,"tables",paste0("fgsea_",tag,".csv"))
   )
-  fg_dt <- as.data.table(fg)
-  if (!nrow(fg_dt)) { message("fgsea returned no results for ", tag); return(invisible(NULL)) }
-  setorder(fg_dt, padj, -NES)
-  fg_dt[, term := TERM_MAP[pathway]]
 
-  # Save full table
-  out_csv <- file.path(GSEA_DIR, "tables", paste0("fgsea_GO_BP_", tag, ".csv"))
-  fwrite(fg_dt[, .(pathway, term, size, NES, pval, padj,
-                   leadingEdge = vapply(leadingEdge, \(v) paste(v, collapse=";"), character(1)))],
-         out_csv)
-  message("Saved: ", out_csv)
-
-  # Quick top barplot
-  topN <- head(fg_dt[is.finite(padj)], topN_bar)
-  if (nrow(topN)) {
-    topN[, label := ifelse(is.na(term) | term=="", pathway, term)]
-    p <- ggplot(topN, aes(x=reorder(label, NES), y=NES, fill=-log10(padj))) +
-      geom_col() + coord_flip() +
-      labs(title=paste0("fgsea GO BP: ", gsub("_"," ", tag)),
-           x=NULL, y="NES", fill="-log10(FDR)") +
-      theme_minimal(base_size=12)
-    out_png <- file.path(GSEA_DIR, "figs", paste0("fgsea_GO_BP_", tag, ".png"))
-    ggsave(out_png, p, width=8, height=6, dpi=300, bg="white")
-    message("Saved: ", out_png)
+  save_fgsea(fg_dt, tag)
+  save_enrichment_plots(pathways, ranks, fg_dt, tag)
+}
   }
 
-  # Pick mito-relevant terms; if none, fall back so plots are still produced
-  sel <- pick_mito_paths(fg_dt, padj_cut=padj_cut_table, top_n=8)
-  if (!length(sel)) {
-    message("No mito keywords found at the chosen FDR; falling back to top 6 terms for curves.")
-    sel <- head(fg_dt$pathway, 6)
+  sig <- get_sig(res)
+  sig_symbols <- fbgn_to_symbol(sig)
+
+  enrich <- run_enrichr(tag, sig_symbols)
+
+  if (!is.null(enrich[["GO_Biological_Process_2018"]])) {
+    run_network(enrich[["GO_Biological_Process_2018"]], tag)
   }
-
-  # Enrichment curves
-  invisible(lapply(sel, save_enrichment_curve,
-                   tag=tag, ranks=ranks, pathways=pathways, TERM_MAP=TERM_MAP))
-
-  # Summary table figure
-  save_gsea_table_plot(tag, sel, ranks, pathways, fg_dt, TERM_MAP)
 }
 
-# Run all three contrasts
-for (tag in c("MG_vs_EARTH","1G_vs_EARTH","MG_vs_1G")) {
-  run_fgsea_and_plots(tag)
+# RUN ALL
+
+for (t in CONTRASTS) {
+  tryCatch(run_analysis(t),
+    error=function(e) message("ERROR: ", e$message))
 }
 
-message("\nAll done. See: ", normalizePath(GSEA_DIR))
-```
-# More Comprehensive GSEA
-```
-#!/usr/bin/env Rscript
-
-# Gene ontology enrichment after DESeq2 differential expression
-# Usage: edit the filenames/parameters below and run in R/Rscript
-
-# ---- Parameters (edit as needed) ----
-counts_file <- "counts_DESeq_ready.csv"
-meta_file   <- "metadata_from_filenames.csv"
-organism    <- "drosophila" # "human", "mouse", or "drosophila"
-pval_cutoff <- 0.05
-lfc_cutoff  <- 1            # absolute log2 fold change threshold
-out_prefix  <- "DE_GO"      # prefix for output files
-orgdb <- "org.Dm.eg.db"
-# ------------------------------------
-
-# Install / load required packages (BiocManager will be used if needed)
-required_pkgs <- c("DESeq2", "clusterProfiler", "AnnotationDbi", "readr",
-                   "dplyr", "enrichplot")
-if (!requireNamespace("BiocManager", quietly=TRUE)) install.packages("BiocManager")
-for (p in required_pkgs) {
-  if (!requireNamespace(p, quietly=TRUE)) BiocManager::install(p, ask=FALSE)
-  library(p, character.only = TRUE)
-}
-
-# Choose organism-specific OrgDb
-library(org.Dm.eg.db)
-
-# Read input files
-counts <- read.csv("counts_DESeq_ready.csv", row.names = 1)
-
-
-meta_raw <- read.csv("metadata_from_filenames.csv", row.names = 1)
-meta_raw$sample <- gsub("-", ".", rownames(meta_raw)) # replace - with . to match count column names
-rownames(meta_raw) <- meta_raw$sample
-# Reorder metadata to match count columns
-meta <- meta_raw[colnames(counts), , drop = FALSE]
-colnames(meta)[2] <- "condition" # rename second column to "condition" for easier handling
-
-# Run a separate DESeq/contrast workflow now so we can produce all pairwise comparisons
-
-dds_pw <- DESeq2::DESeqDataSetFromMatrix(countData = counts,
-                                         colData = meta,
-                                         design = as.formula("~ condition"))
-dds_pw <- dds_pw[rowSums(DESeq2::counts(dds_pw)) > 1, ]
-dds_pw <- DESeq2::DESeq(dds_pw)
-
-# build all pairwise contrasts (A vs B where result uses contrast = c("condition","B","A") -> B vs A)
-conds <- unique(meta$condition)
-pairs <- t(combn(conds, 2))
-pairwise_results <- list()
-
-for (i in seq_len(nrow(pairs))) {
-  a <- pairs[i, 1]
-  b <- pairs[i, 2]
-  contrast_name <- paste0(b, "_vs_", a)
-  # obtain results (b vs a)
-  res_i <- DESeq2::results(dds_pw, contrast = c("condition", b, a))
-  res_df <- as.data.frame(res_i)
-  res_df$gene <- rownames(res_df)
-  # try to shrink if apeglm available
-  if (requireNamespace("apeglm", quietly = TRUE)) {
-    res_sh <- tryCatch(DESeq2::lfcShrink(dds_pw, contrast = c("condition", b, a), type = "apeglm"),
-                       error = function(e) NULL)
-    if (!is.null(res_sh)) {
-      res_df <- as.data.frame(res_sh)
-      res_df$gene <- rownames(res_sh)
-    }
-  }
-  # write full and significant result tables
-  full_fname <- paste0(out_prefix, "_", contrast_name, ".csv")
-  sig_fname  <- paste0(out_prefix, "_", contrast_name, "_sig.csv")
-  write.csv(res_df, file = full_fname, row.names = FALSE)
-  sig_df <- subset(res_df, !is.na(padj) & padj < pval_cutoff & abs(log2FoldChange) >= lfc_cutoff)
-  write.csv(sig_df, file = sig_fname, row.names = FALSE)
-  message(sprintf("Contrast %s: tested=%d; significant=%d -> %s (full) ; %s (sig)",
-                  contrast_name, nrow(res_df), nrow(sig_df), full_fname, sig_fname))
-  pairwise_results[[contrast_name]] <- list(full = res_df, sig = sig_df, files = c(full = full_fname, sig = sig_fname))
-}
-
-
-DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig <- pairwise_results[["SPACEFLIGHT_1G_vs_EARTH"]][["sig"]]
-DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig <- pairwise_results[["SPACEFLIGHT_MICROGRAVITY_vs_EARTH"]][["sig"]]
-DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig <- pairwise_results[["SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G"]][["sig"]]
-# helper to map gene IDs to SYMBOL using the OrgDb named in `orgdb`
-map_to_symbol <- function(df, id_col = "gene", orgdb_name = orgdb) {
-    if (!id_col %in% colnames(df)) return(df)
-    ids <- as.character(df[[id_col]])
-    if (all(is.na(ids) | ids == "")) return(df)
-
-    # try to guess keytype from id format
-    infer_keytype <- function(ids) {
-        ids <- ids[!is.na(ids) & ids != ""]
-        if (length(ids) == 0) return("SYMBOL")
-        if (all(grepl("^FBgn", ids))) return("FLYBASE")
-        if (all(grepl("^ENS", ids))) return("ENSEMBL")
-        if (all(grepl("^[0-9]+$", ids))) return("ENTREZID")
-        "SYMBOL"
-    }
-
-    keytype <- infer_keytype(ids)
-    orgdb_obj <- tryCatch(get(orgdb_name, inherits = TRUE), error = function(e) NULL)
-    if (is.null(orgdb_obj)) return(df)
-
-    keys <- unique(ids[!is.na(ids) & ids != ""])
-    sel <- tryCatch(AnnotationDbi::select(orgdb_obj, keys = keys, columns = "SYMBOL", keytype = keytype),
-                                    error = function(e) NULL)
-    if (is.null(sel) || nrow(sel) == 0 || !"SYMBOL" %in% colnames(sel)) return(df)
-
-    # match back to original order (first match kept)
-    sel_first <- sel[!duplicated(sel[[keytype]]), , drop = FALSE]
-    mapped <- setNames(sel_first$SYMBOL, sel_first[[keytype]])
-    # replace with symbol where available, otherwise keep original id
-    new_names <- ifelse(is.na(mapped[ids]), ids, mapped[ids])
-    df[[id_col]] <- as.character(new_names)
-    df
-}
-
-DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig <- map_to_symbol(DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig, "gene", orgdb)
-DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig <- map_to_symbol(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig, "gene", orgdb)
-DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig <- map_to_symbol(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig, "gene", orgdb)
-
-write.csv(DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig, file = "DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig.csv", quote=FALSE)
-write.csv(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig, file = "DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig.csv", quote=FALSE)
-write.csv(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig, file = "DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig.csv", quote=FALSE)
-
-library(enrichR)
-
-# Check sites and switch to fly
-listEnrichrSites()
-setEnrichrSite("FlyEnrichr")
-
-# Inspect available fly libraries
-fly_dbs <- listEnrichrDbs()
-head(fly_dbs$libraryName)
-
-# Pick GO libraries if available
-dbs_to_use <- grep("^GO_", fly_dbs$libraryName, value = TRUE)
-
-# Extract unique, non-missing fly gene symbols
-genes_1g_vs_earth <- unique(na.omit(DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig$gene))
-genes_mg_vs_earth <- unique(na.omit(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_EARTH_sig$gene))
-genes_mg_vs_1g    <- unique(na.omit(DE_GO_SPACEFLIGHT_MICROGRAVITY_vs_SPACEFLIGHT_1G_sig$gene))
-
-# Run enrichment
-enrich_1g_vs_earth <- enrichr(genes_1g_vs_earth, dbs_to_use)
-enrich_mg_vs_earth <- enrichr(genes_mg_vs_earth, dbs_to_use)
-enrich_mg_vs_1g    <- enrichr(genes_mg_vs_1g, dbs_to_use)
-
-# Example: view GO Biological Process results
-head(enrich_1g_vs_earth[["GO_Biological_Process_2018"]])
-head(enrich_mg_vs_earth[["GO_Biological_Process_2018"]])
-head(enrich_mg_vs_1g[["GO_Biological_Process_2018"]])
-
-# Optional export
-printEnrich(enrich_1g_vs_earth, outFile = "txt")
-printEnrich(enrich_mg_vs_earth, outFile = "txt")
-printEnrich(enrich_mg_vs_1g, outFile = "txt")
-
-# GO Biological Process barplots
-plotEnrich(
-  enrich_1g_vs_earth[["GO_Biological_Process_2018"]],
-  showTerms = 15,
-  numChar = 120,
-  y = "Count",
-  orderBy = "P.value",
-  title = "1G vs Earth"
-)
-ggsave("GO_Biological_Process_1G_vs_Earth.png", width = 8, height = 6, dpi = 300)
-plotEnrich(
-  enrich_mg_vs_earth[["GO_Biological_Process_2018"]],
-  showTerms = 15,
-  numChar = 120,
-  y = "Count",
-  orderBy = "P.value",
-  title = "Microgravity vs Earth"
-)
-ggsave("GO_Biological_Process_Microgravity_vs_Earth.png", width = 8, height = 6, dpi = 300)
-plotEnrich(
-  enrich_mg_vs_1g[["GO_Biological_Process_2018"]],
-  showTerms = 15,
-  numChar = 120,
-  y = "Count",
-  orderBy = "P.value",
-  title = "Microgravity vs 1G"
-)
-ggsave("GO_Biological_Process_1G_vs_Microgravity.png", width = 8, height = 6, dpi = 300)
-
-# GO Molecular Function barplots
-plotEnrich(
-  enrich_1g_vs_earth[["GO_Molecular_Function_2018"]],
-  showTerms = 15,
-  numChar = 120,
-  y = "Count",
-  orderBy = "P.value",
-  title = "1G vs Earth"
-)
-ggsave("GO_Molecular_Function_1G_vs_Earth.png", width = 8, height = 6, dpi = 300)
-plotEnrich(
-  enrich_mg_vs_earth[["GO_Molecular_Function_2018"]],
-  showTerms = 15,
-  numChar = 120,
-  y = "Count",
-  orderBy = "P.value",
-  title = "Microgravity vs Earth"
-)
-ggsave("GO_Molecular_Function_Microgravity_vs_Earth.png", width = 8, height = 6, dpi = 300)
-plotEnrich(
-  enrich_mg_vs_1g[["GO_Molecular_Function_2018"]],
-  showTerms = 15,
-  numChar = 120,
-  y = "Count",
-  orderBy = "P.value",
-  title = "Microgravity vs 1G"
-)
-ggsave("GO_Molecular_Function_1G_vs_Microgravity.png", width = 8, height = 6, dpi = 300)
-
-# GO Cellular Component barplots
-plotEnrich(
-  enrich_1g_vs_earth[["GO_Cellular_Component_2018"]],
-  showTerms = 15,
-  numChar = 120,
-  y = "Count",
-  orderBy = "P.value",
-  title = "1G vs Earth"
-)
-ggsave("GO_Cellular_Component_1G_vs_Earth.png", width = 8, height = 6, dpi = 300)
-plotEnrich(
-  enrich_mg_vs_earth[["GO_Cellular_Component_2018"]],
-  showTerms = 15,
-  numChar = 120,
-  y = "Count",
-  orderBy = "P.value",
-  title = "Microgravity vs Earth"
-)
-ggsave("GO_Cellular_Component_Microgravity_vs_Earth.png", width = 8, height = 6, dpi = 300)
-plotEnrich(
-  enrich_mg_vs_1g[["GO_Cellular_Component_2018"]],
-  showTerms = 15,
-  numChar = 120,
-  y = "Count",
-  orderBy = "P.value",
-  title = "Microgravity vs 1G"
-)
-ggsave("GO_Cellular_Component_1G_vs_Microgravity.png", width = 8, height = 6, dpi = 300)
-
-
-# Now let's identify which enriched GO terms contain mitochondrial genes, and which genes those are
-library(org.Dm.eg.db)
-library(AnnotationDbi)
-library(dplyr)
-
-genes <- DE_GO_SPACEFLIGHT_1G_vs_EARTH_sig$gene
-
-# get go annotations for these genes
-go <- AnnotationDbi::select(
-  org.Dm.eg.db,
-  keys = genes,
-  columns = c("GO","ONTOLOGY"),
-  keytype = "SYMBOL"
-)
-
-library(GO.db)
-library(AnnotationDbi)
-
-go_terms <- AnnotationDbi::select(
-  GO.db,
-  keys = unique(go$GO),
-  columns = c("TERM"),
-  keytype = "GOID"
-)
-
-go_annot <- go %>%
-  left_join(go_terms, by = c("GO" = "GOID"))
-
-mito_annotations <- go_annot %>%
-  filter(grepl("mitochond", TERM, ignore.case = TRUE))
-
-mito_genes <- unique(mito_annotations$SYMBOL)
-
-mito_terms <- enrich_mg_vs_earth[["GO_Biological_Process_2018"]] %>%
-  mutate(
-    gene_list = strsplit(Genes,";"),
-    mito_hits = sapply(gene_list, function(x)
-      paste(intersect(x, mito_genes), collapse=";")
-    )
-  ) %>%
-  filter(mito_hits != "")
-
-mito_terms %>%
-  mutate(score = -log10(Adjusted.P.value)) %>%
-  ggplot(aes(score, reorder(Term, score))) +
-  geom_point(size=4) +
-  labs(
-    x="-log10(FDR)",
-    y="GO term",
-    title="Enriched pathways containing mitochondrial genes"
-  ) +
-  theme_bw()
-
-library(dplyr)
-library(tidyr)
-library(stringr)
-library(igraph)
-library(ggraph)
-library(ggplot2)
-
-# ----------------------------
-# INPUTS
-# ----------------------------
-# enrich_df <- enrich_mg_vs_earth[["GO_Biological_Process_2018"]]
-# enrich_df <- enrich_1g_vs_earth[["GO_Biological_Process_2018"]]
-enrich_df <- enrich_mg_vs_1g[["GO_Biological_Process_2018"]]
-# or use enrich_1g_vs_earth[["GO_Biological_Process"]], etc.
-
-# mito_genes should already exist
-# example:
-# mito_genes <- c("Hsp60C", "Porin2", "Ant2", "Cyt-c-d", "ATPsynbetaL", "COX6CL")
-
-# ----------------------------
-# BUILD TERM-GENE EDGE LIST
-# ----------------------------
-build_mito_cnet <- function(enrich_df, mito_genes, top_n_terms = 15, max_term_chars = 55) {
-  
-  term_gene_df <- enrich_df %>%
-    as_tibble() %>%
-    filter(!is.na(Term), !is.na(Adjusted.P.value), !is.na(Genes)) %>%
-    mutate(
-      gene_list = strsplit(Genes, ";"),
-      mito_hits = lapply(gene_list, function(x) intersect(x, mito_genes)),
-      n_mito_hits = lengths(mito_hits)
-    ) %>%
-    filter(n_mito_hits > 0) %>%
-    arrange(Adjusted.P.value, desc(n_mito_hits)) %>%
-    slice_head(n = top_n_terms) %>%
-    transmute(
-      term_full = Term,
-      term = str_trunc(Term, max_term_chars),
-      Adjusted.P.value,
-      minus_log10_fdr = -log10(Adjusted.P.value),
-      mito_hits
-    ) %>%
-    unnest_longer(mito_hits, values_to = "gene") %>%
-    filter(!is.na(gene), gene != "")
-  
-  if (nrow(term_gene_df) == 0) {
-    stop("No enriched terms contained any mitochondrial genes.")
-  }
-  
-  # edge list
-  edges <- term_gene_df %>%
-    select(from = term, to = gene, minus_log10_fdr, term_full)
-  
-  # node metadata
-  term_nodes <- term_gene_df %>%
-    distinct(term, term_full, minus_log10_fdr) %>%
-    transmute(
-      name = term,
-      node_type = "term",
-      score = minus_log10_fdr,
-      label = term
-    )
-  
-  gene_nodes <- term_gene_df %>%
-    distinct(gene) %>%
-    transmute(
-      name = gene,
-      node_type = "gene",
-      score = NA_real_,
-      label = gene
-    )
-  
-  nodes <- bind_rows(term_nodes, gene_nodes)
-  
-  list(edges = edges, nodes = nodes, term_gene_df = term_gene_df)
-}
-
-cnet_obj <- build_mito_cnet(enrich_df, mito_genes, top_n_terms = 12)
-
-# ----------------------------
-# MAKE GRAPH
-# ----------------------------
-g <- graph_from_data_frame(
-  d = cnet_obj$edges %>% select(from, to),
-  vertices = cnet_obj$nodes,
-  directed = FALSE
-)
-
-# ----------------------------
-# PLOT
-# ----------------------------
-set.seed(123)
-
-ggraph(g, layout = "fr") +
-  
-  geom_edge_link(
-    color = "grey70",
-    alpha = 0.5,
-    linewidth = 0.7
-  ) +
-  
-  geom_node_point(
-    aes(
-      size = ifelse(node_type == "term", score, 4),
-      fill = score
-    ),
-    shape = 21,
-    color = "black",
-    stroke = 0.3
-  ) +
-  
-  geom_node_text(
-    aes(label = label),
-    repel = TRUE,
-    size = 5
-  ) +
-  
-  scale_fill_gradient(
-    low = "blue",
-    high = "red",
-    na.value = "gold",
-    name = expression(-log[10]("FDR"))
-  ) +
-  
-  scale_size_continuous(
-    range = c(4,10),
-    guide = "none"
-  ) +
-  
-  labs(
-    title = "Mitochondrial genes driving enriched pathways",
-    subtitle = "Blue → red indicates increasing pathway significance"
-  ) +
-  
-  theme_void()
-# ggsave("mito_cnet_mg_vs_earth.png", width = 10, height = 8, dpi = 300)
-# ggsave("mito_cnet_1g_vs_earth.png", width = 10, height = 8, dpi = 300)
-ggsave("mito_cnet_mg_vs_1g.png", width = 10, height = 8, dpi = 300)
-```
+message("\nDONE → ", GSEA_DIR)
