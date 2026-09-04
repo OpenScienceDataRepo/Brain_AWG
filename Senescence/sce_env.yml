@@ -1,0 +1,61 @@
+name: sce_env
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  # ---------------- Core R ----------------
+  - r-base=4.4.*
+  - r-essentials
+  - r-irkernel
+  - r-recommended
+
+  # ---------------- Seurat ecosystem ----------------
+  - r-seurat
+  - r-seuratobject
+  - r-signac
+  - r-tidyverse
+  - r-devtools
+  - r-remotes
+
+  # ---------------- Bioconductor (IMPORTANT: NO VERSION PINNING) ----------------
+  - bioconductor-biocgenerics
+  - bioconductor-s4vectors
+  - bioconductor-iranges
+  - bioconductor-genomicranges
+  - bioconductor-genomeinfodb
+  - bioconductor-rsamtools
+  - bioconductor-singlecellexperiment
+  - bioconductor-limma
+
+  # ---------------- Data / IO (precompiled binaries) ----------------
+  - r-arrow
+  - r-hdf5r
+  - r-units
+
+  # ---------------- Spatial stack ----------------
+  - r-sf
+  - gdal
+  - geos
+  - proj
+
+  # ---------------- Graphics stack (DO NOT PIN) ----------------
+  - cairo
+  - pango
+  - freetype
+  - harfbuzz
+  - libpng
+  - libtiff
+
+  # ---------------- Compiler toolchain (only ABI, not builds) ----------------
+  - compilers
+  - cxx-compiler
+  - gxx_linux-64
+  - libstdcxx-ng
+  - libgcc-ng
+
+  # ---------------- Utilities ----------------
+  - git
+  - curl
+  - openssl
+  - zlib
