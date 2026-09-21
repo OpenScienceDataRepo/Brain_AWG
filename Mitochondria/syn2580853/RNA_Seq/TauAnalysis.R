@@ -21,7 +21,8 @@ message("✓ Packages loaded successfully!")
 # --------------------------------------------------------
 # Point this to your local syn2580853/RNA_Seq folder after downloading
 # count files from Synapse into Collapsed_Counts/.
-setwd("Your_Working_Directory/RNA_Seq")
+
+setwd("/Users/kingzshi/Code/Mitochondria/Data/RNA_Seq")
 
 message("Working directory: ", getwd())
 
@@ -421,7 +422,7 @@ save_volcano_enhanced <- function(res_df, tag, top_n_labels = 15,
     geom_text_repel(
       data = subset(vdf, gene %in% top_genes),
       aes(label = gene),
-      size = 3,
+      size = 3.5,
       max.overlaps = 20,
       box.padding = 0.5
     ) +
@@ -438,7 +439,7 @@ save_volcano_enhanced <- function(res_df, tag, top_n_labels = 15,
     )
   
   ggsave(file.path(OUT_DIR, "figs", paste0("volcano_", tag, ".png")),
-         p, width = 10, height = 8, dpi = 200)
+         p, width = 10, height = 8, dpi = 400)
   
   message("  Saved: volcano_", tag, ".png")
 }
@@ -638,7 +639,7 @@ save_volcano_mito <- function(res_df, mito_genes, tag, thr_p = 0.05, thr_fc = 1)
     geom_text_repel(
       data = subset(vdf, gene %in% mito_to_label),
       aes(label = gene),
-      size = 3,
+      size = 3.5,
       max.overlaps = 30,
       box.padding = 0.4
     ) +
@@ -658,7 +659,7 @@ save_volcano_mito <- function(res_df, mito_genes, tag, thr_p = 0.05, thr_fc = 1)
     )
   
   ggsave(file.path(OUT_DIR, "figs", paste0("volcano_mito_", tag, ".png")),
-         p, width = 10, height = 8, dpi = 200)
+         p, width = 10, height = 8, dpi = 400)
   
   message("  Saved: volcano_mito_", tag, ".png")
 }

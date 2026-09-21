@@ -24,7 +24,8 @@ message("✓ Packages loaded")
 # --------------------------------------------------------
 # Point this to your local syn2580853/Proteomics folder after downloading
 # the Baylor TMT file and biospecimen metadata from Synapse.
-setwd("Your_Working_Directory/Proteomics")
+
+setwd("/Users/kingzshi/Code/Mitochondria/Data/Proteomics")
 
 OUT_DIR <- "RESULTS_syn2580853"
 EXTRAS_DIR <- "extras"
@@ -316,7 +317,7 @@ save_volcano <- function(tt, contrast_name, top_n = 15) {
     geom_point(alpha = 0.6, size = 1.5) +
     geom_text_repel(data = top_labels, 
                     aes(label = protein_id), 
-                    size = 2.5,
+                    size = 3.5,
                     max.overlaps = 20) +
     scale_color_manual(values = c("Down" = "blue", "Up" = "red", "NS" = "grey70")) +
     geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "gray40") +
@@ -329,7 +330,7 @@ save_volcano <- function(tt, contrast_name, top_n = 15) {
     )
   
   ggsave(file.path(OUT_DIR, "figs", paste0("volcano_", contrast_name, ".png")),
-         p, width = 10, height = 8, dpi = 200)
+         p, width = 10, height = 8, dpi = 400)
 }
 
 # Create volcano for key comparisons
@@ -553,11 +554,6 @@ gene_map <- uniprot_map %>%
 
 message("  Final gene map: ", nrow(gene_map), " proteins with FlyBase symbols")
 
-# Check overlap with GO pathways
-genes_in_pathways <- unique(unlist(pathways))
-overlap <- sum(gene_map$gene_symbol %in% genes_in_pathways)
-message("  Genes overlapping with GO pathways: ", overlap)
-
 # --------------------------------------------------------
 # STEP 17: Build Ranked Gene Lists for Each Contrast
 # --------------------------------------------------------
@@ -619,6 +615,11 @@ pathways <- split(go_bp$SYMBOL, go_bp$GOALL)
 # Filter by size (10-500 genes per pathway)
 pathways <- pathways[sapply(pathways, length) >= 10 & sapply(pathways, length) <= 500]
 message("GO BP pathways loaded: ", length(pathways))
+
+# Check overlap with GO pathways
+genes_in_pathways <- unique(unlist(pathways))
+overlap <- sum(gene_map$gene_symbol %in% genes_in_pathways)
+message("  Genes overlapping with GO pathways: ", overlap)
 
 # Get GO term names
 go_terms <- AnnotationDbi::select(GO.db, keys = names(pathways), 
